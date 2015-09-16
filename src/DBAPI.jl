@@ -7,6 +7,7 @@ abstract DatabaseError{T<:DatabaseInterface} <: Exception
 abstract DatabaseConnection{T<:DatabaseInterface}
 abstract DatabaseCursor{T<:DatabaseInterface} <: AbstractArray
 Base.linearindexing(::Type{DatabaseCursor}) = Base.LinearSlow()
+Base.ndims(cursor::DatabaseCursor) = 2
 
 """
 If this error is thrown, a driver has not implemented a required function
@@ -221,6 +222,16 @@ function getindex{T<:DatabaseInterface}(cursor::DatabaseCursor{T}, row::Any, col
 end
 
 """
+A terrible hack to make the fetchinto! signature work.
+
+See https://github.com/JuliaLang/julia/issues/13156#issuecomment-140618981
+"""
+typealias AssociativeVK{V,K} Associative{K,V}
+
+index_return_type(a::Associative) = valtype(a)
+index_return_type(a::Any) = eltype(a)
+
+"""
 Get results from a database cursor and store them in a preallocated data
 structure.
 
@@ -230,14 +241,14 @@ defined above.
 
 Returns the preallocated data structure.
 """
-function fetchinto!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}, V<:Any}(
-        preallocated::Union{AbstractArray{U}, Associative{V,U}},
+function fetchinto!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+        preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
         cursor::DatabaseCursor{T}
     )
     for i in eachindex(preallocated), j in eachindex(preallocated[i])
         datum = cursor[i, j]
         preallocated[i][j] = (
-            isa(datum, Nullable) && !(eltype(preallocated[i]) <: Nullable) ?
+            isa(datum, Nullable) && !(index_return_type(preallocated[i]) <: Nullable) ?
             get(datum) :
             datum
         )

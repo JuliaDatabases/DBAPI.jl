@@ -32,13 +32,32 @@ function main()
         end
     end
 
-    data_structures = (
-        Any[Array{Any}(1)],
-        Any[Array{Any}(1, 1)],
-        Any[Dict{Any, Any}()],
-        Any[PriorityQueue()],
-        Dict{Any,Any}(1=>Any[]),
+    empty_data_structures = (
+        Array{Any}[Array{Any}(0)],
+        Array{Any}[Array{Any}(0, 0)],
+        Dict{Any, Any}[Dict{Any, Any}()],
+        PriorityQueue[PriorityQueue()],
+        Dict{Any,Array{Any}}(),
     )
+
+    filled_pq = PriorityQueue()
+    filled_pq[1] = 1
+
+    data_structures = (
+        Array{Any}[Array{Any}(1)],
+        Array{Any}[Array{Any}(1, 1)],
+        Dict{Any, Any}[Dict{Any, Any}(1=>5)],
+        PriorityQueue[filled_pq],
+        Dict{Any,Array{Any}}(1=>Array{Any}(1)),
+    )
+
+    for ds in empty_data_structures
+        @test ds == DBAPI.fetchinto!(ds, cursor)
+    end
+
+    for ds in data_structures
+        @test_throws DBAPI.NotSupportedError DBAPI.fetchinto!(ds, cursor)
+    end
 end
 
 end
