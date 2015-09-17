@@ -1,5 +1,17 @@
 module DBAPI
 
+include("arrays.jl")
+
+export execute,
+    executemany,
+    commit,
+    rollback,
+    rows,
+    columns,
+    fetchinto!,
+    ColumnarArrayInterface
+
+
 import Base: connect, close, getindex
 
 abstract DatabaseInterface
