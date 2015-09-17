@@ -26,11 +26,16 @@ function main()
     @test_throws DBAPI.NotImplementedError DBAPI.rows(cursor)
     @test_throws DBAPI.NotSupportedError DBAPI.columns(cursor)
 
+    @test_throws DBAPI.NotImplementedError DBAPI.execute(cursor, "foobar", (1, "d"))
+    @test_throws DBAPI.NotImplementedError DBAPI.executemany(cursor, "foobar", ((1, "d"), ("6", 0xd)))
+
     for i in [12, :twelve]
         for j in [12, :twelve]
             @test_throws DBAPI.NotSupportedError cursor[i, j]
         end
     end
+
+    @test_throws DBAPI.NotSupportedError cursor["far", Set([1,2,3])]
 
     empty_data_structures = (
         Array{Any}[Array{Any}(0)],
