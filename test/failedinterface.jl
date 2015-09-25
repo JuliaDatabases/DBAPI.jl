@@ -1,4 +1,5 @@
 module FailedInterface
+
 import DBAPI
 using Base.Test
 import Base.Collections: PriorityQueue
@@ -14,7 +15,10 @@ function main()
 
     conn = BadConnection{BadInterface}()
 
+    @test_throws DBAPI.NotImplementedError DBAPI.commit(conn)
+    @test_throws DBAPI.NotImplementedError DBAPI.isopen(conn)
     @test_throws DBAPI.NotImplementedError DBAPI.close(conn)
+    @test_throws DBAPI.NotImplementedError DBAPI.isopen(conn)
     @test_throws DBAPI.NotImplementedError DBAPI.commit(conn)
     @test_throws DBAPI.NotSupportedError DBAPI.rollback(conn)
     @test_throws DBAPI.NotImplementedError DBAPI.cursor(conn)
@@ -26,8 +30,8 @@ function main()
     @test_throws DBAPI.NotImplementedError DBAPI.rows(cursor)
     @test_throws DBAPI.NotSupportedError DBAPI.columns(cursor)
 
-    @test_throws DBAPI.NotImplementedError DBAPI.execute(cursor, "foobar", (1, "d"))
-    @test_throws DBAPI.NotImplementedError DBAPI.executemany(cursor, "foobar", ((1, "d"), ("6", 0xd)))
+    @test_throws DBAPI.NotImplementedError DBAPI.execute!(cursor, "foobar", (1, "d"))
+    @test_throws DBAPI.NotImplementedError DBAPI.executemany!(cursor, "foobar", ((1, "d"), ("6", 0xd)))
 
     for i in [12, :twelve]
         for j in [12, :twelve]
@@ -45,6 +49,12 @@ function main()
         Dict{Any,Array{Any}}(),
     )
 
+    empty_2d_data_structures = (
+        Array{Any}(0,0),
+        Dict{Any, Any}(),
+        PriorityQueue(),
+    )
+
     filled_pq = PriorityQueue()
     filled_pq[1] = 1
 
@@ -56,12 +66,37 @@ function main()
         Dict{Any,Array{Any}}(1=>Array{Any}(1)),
     )
 
-    for ds in empty_data_structures
+    filled_2d_pq = PriorityQueue()
+    filled_pq[1, 1] = 1
+
+    filled_2d_data_structures = (
+        Array{Any}(1, 1),
+        Dict{Any, Any}((1, 1)=>5),
+        filled_pq,
+    )
+
+    for ds in empty_2d_data_structures
         @test ds == DBAPI.fetchinto!(ds, cursor)
     end
 
-    for ds in data_structures
+    for ds in empty_data_structures
+        @test ds == DBAPI.fetchrowsinto!(ds, cursor)
+    end
+
+    for ds in empty_data_structures
+        @test ds == DBAPI.fetchcolumnsinto!(ds, cursor)
+    end
+
+    for ds in filled_2d_data_structures
         @test_throws DBAPI.NotSupportedError DBAPI.fetchinto!(ds, cursor)
+    end
+
+    for ds in data_structures
+        @test_throws DBAPI.NotSupportedError DBAPI.fetchrowsinto!(ds, cursor)
+    end
+
+    for ds in data_structures
+        @test_throws DBAPI.NotSupportedError DBAPI.fetchcolumnsinto!(ds, cursor)
     end
 end
 

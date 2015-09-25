@@ -1,27 +1,37 @@
 module DBAPIBase
 
 export cursor,
-    execute,
-    executemany,
+    execute!,
+    executemany!,
     commit,
     rollback,
     rows,
     columns,
     fetchinto!,
+    fetchrowsinto!,
+    fetchcolumnsinto!,
     DatabaseInterface,
     DatabaseError,
     DatabaseConnection,
-    DatabaseCursor
+    DatabaseCursor,
+    DatabaseQuery,
+    DatabaseQueryError
 
 
-import Base: connect, close, getindex
+import Base: connect, close, getindex, isopen
 
 abstract DatabaseInterface
 abstract DatabaseError{T<:DatabaseInterface} <: Exception
 abstract DatabaseConnection{T<:DatabaseInterface}
-abstract DatabaseCursor{T<:DatabaseInterface} <: AbstractArray
+abstract DatabaseCursor{T<:DatabaseInterface}
 Base.linearindexing(::Type{DatabaseCursor}) = Base.LinearSlow()
 Base.ndims(cursor::DatabaseCursor) = 2
+
+abstract DatabaseQuery
+
+immutable StringDatabaseQuery{T<:AbstractString} <: DatabaseQuery
+    query::T
+end
 
 """
 If this error is thrown, a driver has not implemented a required function
@@ -41,6 +51,16 @@ function Base.showerror{T<:DatabaseInterface}(io::IO, e::NotSupportedError{T})
     print(io, T, " does not support this optional DBAPI feature")
 end
 
+"""
+If this error is thrown, an error occured while processing this database query.
+"""
+type DatabaseQueryError{T<:DatabaseInterface, S<:DatabaseQuery} <: DatabaseError{T}
+    query::S
+end
+
+function Base.showerror{T<:DatabaseInterface}(io::IO, e::DatabaseQueryError{T})
+    print(io, "An error occured while processing this query:\n", e.query)
+end
 
 """
 Constructs a database connection.
@@ -63,6 +83,15 @@ performed.
 Returns `nothing`.
 """
 function close{T<:DatabaseInterface}(conn::DatabaseConnection{T})
+    throw(NotImplementedError{T}())
+end
+
+"""
+Returns true if the connection is open and not broken.
+
+Returns `Bool`
+"""
+function isopen{T<:DatabaseInterface}(conn::DatabaseConnection{T})
     throw(NotImplementedError{T}())
 end
 
@@ -118,12 +147,20 @@ T<:Associative for keyword/named parameters.
 
 Returns `nothing`.
 """
-function execute{T<:DatabaseInterface}(
+function execute!{T<:DatabaseInterface}(
+        cursor::DatabaseCursor{T},
+        query::DatabaseQuery,
+        parameters=(),
+    )
+    throw(NotImplementedError{T}())
+end
+
+function execute!{T<:DatabaseInterface}(
         cursor::DatabaseCursor{T},
         query::AbstractString,
         parameters=(),
     )
-    throw(NotImplementedError{T}())
+    execute!(cursor, StringDatabaseQuery(query), parameters)
 end
 
 """
@@ -137,16 +174,24 @@ parameters, or items of some T<:Associative for keyword/named parameters.
 
 Returns `nothing`.
 """
-function executemany{T<:DatabaseInterface}(
+function executemany!{T<:DatabaseInterface}(
+        cursor::DatabaseCursor{T},
+        query::DatabaseQuery,
+        parameters=(),
+    )
+    for parameter_set in parameters
+        result = execute!(cursor, query, parameter_set)
+    end
+
+    return nothing
+end
+
+function executemany!{T<:DatabaseInterface}(
         cursor::DatabaseCursor{T},
         query::AbstractString,
         parameters=(),
     )
-    for parameter_set in parameters
-        result = execute(cursor, query, parameter_set)
-    end
-
-    return nothing
+    executemany!(cursor, StringDatabaseQuery(query), parameters)
 end
 
 """
@@ -240,14 +285,17 @@ A terrible hack to make the fetchinto! signature work.
 
 See https://github.com/JuliaLang/julia/issues/13156#issuecomment-140618981
 """
-typealias AssociativeVK{V,K} Associative{K,V}
+typealias AssociativeVK{V, K} Associative{K, V}
 
 index_return_type(a::Associative) = valtype(a)
 index_return_type(a::Any) = eltype(a)
 
+each_index_tuple(a::Associative) = eachindex(a)
+each_index_tuple(a::Any) = map(ind -> ind2sub(a, ind), eachindex(a))
+
 """
-Get results from a database cursor and store them in a preallocated data
-structure.
+Get results from a database cursor and store them in a preallocated
+two-dimensional data structure.
 
 This out-of-the-box method supports a huge variety of data structures under the
 `AbstractArray` and `Associative` supertypes. It uses the `getindex` functions
@@ -255,13 +303,67 @@ defined above.
 
 Returns the preallocated data structure.
 """
-function fetchinto!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+function fetchinto!{T<:DatabaseInterface}(
+        preallocated::Union{AbstractMatrix, Associative},
+        cursor::DatabaseCursor{T}
+    )
+    for (i, j) in each_index_tuple(preallocated)
+        datum = cursor[i, j]
+        preallocated[i, j] = (
+            isa(datum, Nullable) &&
+            !(index_return_type(preallocated) <: Nullable ||
+                Nullable <: index_return_type(preallocated)) ?
+            get(datum) :
+            datum
+        )
+    end
+
+    return preallocated
+end
+
+"""
+Get results from a database cursor and store them in a preallocated data
+structure (a collection of rows).
+
+This out-of-the-box method supports a huge variety of data structures under the
+`AbstractArray` and `Associative` supertypes. It uses the `getindex` functions
+defined above.
+
+Returns the preallocated data structure.
+"""
+function fetchrowsinto!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
         preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
         cursor::DatabaseCursor{T}
     )
     for i in eachindex(preallocated), j in eachindex(preallocated[i])
         datum = cursor[i, j]
         preallocated[i][j] = (
+            isa(datum, Nullable) && !(index_return_type(preallocated[i]) <: Nullable) ?
+            get(datum) :
+            datum
+        )
+    end
+
+    return preallocated
+end
+
+"""
+Get results from a database cursor and store them in a preallocated data
+structure (a collection of columns).
+
+This out-of-the-box method supports a huge variety of data structures under the
+`AbstractArray` and `Associative` supertypes. It uses the `getindex` functions
+defined above.
+
+Returns the preallocated data structure.
+"""
+function fetchcolumnsinto!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+        preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
+        cursor::DatabaseCursor{T}
+    )
+    for j in eachindex(preallocated), i in eachindex(preallocated[j])
+        datum = cursor[i, j]
+        preallocated[j][i] = (
             isa(datum, Nullable) && !(index_return_type(preallocated[i]) <: Nullable) ?
             get(datum) :
             datum
