@@ -2,7 +2,9 @@ module ArrayInterfaces
 
 import Base: connect, close, getindex, show, start, next, done, length, isopen
 importall ..DBAPIBase
-import Iterators: partition
+
+
+### Underlying column data structures
 
 abstract AbstractColumn{T}
 
@@ -19,17 +21,19 @@ end
 SubColumn(column::Column, indices...) = SubColumn(column.name, sub(column.data, indices...))
 
 start(column::AbstractColumn) = start(column.data)
-next{T}(column::AbstractColumn{T}, state) = next(column.data, state)::(T, Any)
+next{T}(column::AbstractColumn{T}, state) = next(column.data, state)::Tuple{T, Any}
 done(column::AbstractColumn, state) = done(column.data, state)
 
 getindex(column::AbstractColumn, indexes...) = getindex(column.data, indexes...)
 length(column::AbstractColumn) = length(column.data)
 
+
+### Interface
+
 type ColumnarArrayInterface <: DatabaseInterface end
 
-immutable ArrayInterfaceError{T<:AbstractString} <: DatabaseError{ColumnarArrayInterface}
-    message::T
-end
+
+### Connections
 
 type ColumnarArrayConnection <: DatabaseConnection{ColumnarArrayInterface}
     columns::Vector{Column}
@@ -40,80 +44,12 @@ function Base.show(io::IO, connection::ColumnarArrayConnection)
     print(io, typeof(connection), "(closed=$(!isopen(connection))")
 end
 
-type ColumnarArrayCursor <: DatabaseCursor{ColumnarArrayInterface}
-    connection::ColumnarArrayConnection
-    columns::Vector{SubColumn}
-
-    ColumnarArrayCursor(connection) = new(connection)
-end
-
-function Base.show(io::IO, cursor::ColumnarArrayCursor)
-    print(io, typeof(cursor), " for ", cursor.connection)
-end
-
-
-abstract ColumnarArrayRowIterator
-
-type ColumnarArrayInfiniteRowIterator
-    cursor::ColumnarArrayCursor
-end
-
-type ColumnarArrayStepRowIterator
-    cursor::ColumnarArrayCursor
-    nrows::Int
-end
-
-type ColumnarArrayColumnIterator
-    cursor::ColumnarArrayCursor
-end
-
-function rows(cursor::ColumnarArrayCursor, nrows)
-    if nrows == Inf
-        return ColumnarArrayInfiniteRowIterator(cursor)
-    else
-        return ColumnarArrayStepRowIterator(cursor, convert(Int64, nrows))
-    end
-end
-
-start(iter::ColumnarArrayInfiniteRowIterator) = true
-function next(iter::ColumnarArrayInfiniteRowIterator, state::Bool)
-    if state
-        return collect(zip(iter.cursor.columns...)), false
-    end
-end
-done(iter::ColumnarArrayInfiniteRowIterator, state::Bool) = !state
-
-function start(iter::ColumnarArrayStepRowIterator)
-    part_iterator = partition(zip(iter.cursor.columns...), iter.nrows)
-    return (part_iterator, start(part_iterator))
-end
-
-function next(iter::ColumnarArrayStepRowIterator, state)
-    (part_iterator, current_state) = state
-    (next_set, next_state) = next(part_iterator, current_state)
-    return (collect(next_set), (part_iterator, next_state))
-end
-
-function done(iter::ColumnarArrayStepRowIterator, state)
-    return done(state...)
-end
-
-columns(cursor::ColumnarArrayCursor) = ColumnarArrayColumnIterator(cursor)
-
-start(iter::ColumnarArrayColumnIterator) = start(iter.cursor.columns)
-next(iter::ColumnarArrayColumnIterator, state) = next(iter.cursor.columns, state)
-done(iter::ColumnarArrayColumnIterator, state) = done(iter.cursor.columns, state)
-
-immutable ColumnarArrayQuery{T<:OrdinalRange} <: DatabaseQuery
-    columns::Vector{Symbol}
-    rows::T
-end
-
 function connect(
         ::Type{ColumnarArrayInterface},
         names::AbstractArray{Symbol},
         columns::AbstractArray{Vector}
     )
+
     if length(names) != length(columns)
         throw(ArrayInterfaceError("Arrays of names and columns must be the same length"))
     end
@@ -138,23 +74,119 @@ commit(connection::ColumnarArrayConnection) = nothing
 
 isopen(connection::ColumnarArrayConnection) = !connection.closed
 
+
+### Cursors
+
+type ColumnarArrayCursor <: DatabaseCursor{ColumnarArrayInterface}
+    connection::ColumnarArrayConnection
+    columns::Vector{SubColumn}
+
+    ColumnarArrayCursor(connection) = new(connection)
+end
+
+function Base.show(io::IO, cursor::ColumnarArrayCursor)
+    print(io, typeof(cursor), " for ", cursor.connection)
+end
+
 cursor(connection::ColumnarArrayConnection) = ColumnarArrayCursor(connection)
+
+
+### Queries
+
+immutable ColumnarArrayQuery{T<:OrdinalRange} <: DatabaseQuery
+    columns::Vector{Symbol}
+    rows::T
+end
 
 function execute!(cursor::ColumnarArrayCursor, query::ColumnarArrayQuery)
     try
+        # handle case where there are rows requested from no columns
+        if isempty(query.columns) && !isempty(query.rows)
+            throw(BoundsError())
+        end
+
+        remaining_columns = Set(query.columns)
         cursor.columns = map(filter(cursor.connection.columns) do col
-                col.name in query.columns
+                is_queried = col.name in query.columns
+                if is_queried
+                    pop!(remaining_columns, col.name)
+                end
+                is_queried
             end) do col
             SubColumn(col, query.rows)
         end
+
+        # don't allow queries for nonexistent columns
+        if !isempty(remaining_columns)
+            throw(BoundsError())
+        end
     catch error
-        if isa(error, BoundsError)
-            throw(DatabaseQueryError(query))
+        if isa(error, BoundsError) || isa(error, KeyError)
+            rethrow(DatabaseQueryError(interface(cursor), query))
         else
             rethrow(error)
         end
     end
+
+    return nothing
 end
+
+
+### Results
+
+immutable ColumnarArrayRowIterator
+    cursor::ColumnarArrayCursor
+end
+
+function rows(cursor::ColumnarArrayCursor)
+    if !isdefined(cursor, :columns)
+        throw(ArrayInterfaceError("No query has been run on $cursor"))
+    end
+
+    return ColumnarArrayRowIterator(cursor)
+end
+
+function start(iter::ColumnarArrayRowIterator)
+    if isempty(iter.cursor.columns)
+        # needed because the method zip() does not exist
+        zip_iterator = zip(())
+    else
+        zip_iterator = zip(iter.cursor.columns...)
+    end
+
+    return (zip_iterator, start(zip_iterator))
+end
+
+function next(iter::ColumnarArrayRowIterator, state)
+    (zip_iterator, current_state) = state
+    (next_set, next_state) = next(zip_iterator, current_state)
+    return (next_set, (zip_iterator, next_state))
+end
+
+function done(iter::ColumnarArrayRowIterator, state)
+    return done(state...)
+end
+
+immutable ColumnarArrayColumnIterator
+    cursor::ColumnarArrayCursor
+end
+
+function columns(cursor::ColumnarArrayCursor)
+    if !isdefined(cursor, :columns)
+        throw(ArrayInterfaceError("No query has been run on $cursor"))
+    end
+
+    return ColumnarArrayColumnIterator(cursor)
+end
+
+start(iter::ColumnarArrayColumnIterator) = start(iter.cursor.columns)
+
+function next(iter::ColumnarArrayColumnIterator, state)
+    (next_col, next_state) = next(iter.cursor.columns, state)
+    return (collect(next_col), next_state)
+end
+
+done(iter::ColumnarArrayColumnIterator, state) = done(iter.cursor.columns, state)
 
 function getindex(cursor::ColumnarArrayCursor, row_ind::Int, column_name::Symbol)
     if_failed = BoundsError(cursor, (row_ind, column_name))
@@ -180,6 +212,13 @@ function getindex(cursor::ColumnarArrayCursor, row_ind::Int, column_ind::Int)
     catch error
         throw(if_failed)
     end
+end
+
+
+### Errors
+
+immutable ArrayInterfaceError{T<:AbstractString} <: DatabaseError{ColumnarArrayInterface}
+    message::T
 end
 
 end  # module

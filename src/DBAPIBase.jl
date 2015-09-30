@@ -10,6 +10,7 @@ export cursor,
     fetchinto!,
     fetchrowsinto!,
     fetchcolumnsinto!,
+    interface,
     DatabaseInterface,
     DatabaseError,
     DatabaseConnection,
@@ -34,6 +35,15 @@ immutable StringDatabaseQuery{T<:AbstractString} <: DatabaseQuery
 end
 
 """
+Returns the interface type for any database object.
+"""
+function interface{T<:DatabaseInterface}(
+    database_object::Union{DatabaseCursor{T}, DatabaseConnection{T}, DatabaseError{T}}
+)
+    return T
+end
+
+"""
 If this error is thrown, a driver has not implemented a required function
 of this interface.
 """
@@ -55,6 +65,7 @@ end
 If this error is thrown, an error occured while processing this database query.
 """
 type DatabaseQueryError{T<:DatabaseInterface, S<:DatabaseQuery} <: DatabaseError{T}
+    interface::Type{T}
     query::S
 end
 
@@ -197,14 +208,12 @@ end
 """
 Create a row iterator.
 
-This method should return an instance of an iterator type which returns at
-most `nrows` rows on each iteration. Use `Inf` for an iterator which will
-return all the rows in one iteration. Row groups should be returned as a
-Vector{Tuple{...}} with as much type information in the Tuple{...} as
-possible. It is encouraged but not necessary to have the row groups be of the
-same type.
+This method should return an instance of an iterator type which returns one row
+on each iteration. Each row should be returned as a Tuple{...} with as much
+type information in the Tuple{...} as possible. It is encouraged but not
+necessary to have the rows be of the same type.
 """
-function rows{T<:DatabaseInterface}(cursor::DatabaseCursor{T}, nrows::Real=Inf)
+function rows{T<:DatabaseInterface}(cursor::DatabaseCursor{T})
     throw(NotImplementedError{T}())
 end
 
@@ -212,8 +221,8 @@ end
 Create a column iterator.
 
 This method should return an instance of an iterator type which returns one
-column on each iteration. Columns should be returned as a Vector{...} with as
-much type information in the Vector{...} as possible.
+column on each iteration. Each column should be returned as a Vector{...} with
+as much type information in the Vector{...} as possible.
 
 This method is optional if rows can have different lengths or sets of values.
 """

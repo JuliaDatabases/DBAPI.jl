@@ -25,8 +25,6 @@ function main()
 
     cursor = BadCursor{BadInterface}()
 
-    @test_throws DBAPI.NotImplementedError DBAPI.rows(cursor, Inf)
-    @test_throws DBAPI.NotImplementedError DBAPI.rows(cursor, 1)
     @test_throws DBAPI.NotImplementedError DBAPI.rows(cursor)
     @test_throws DBAPI.NotSupportedError DBAPI.columns(cursor)
 
