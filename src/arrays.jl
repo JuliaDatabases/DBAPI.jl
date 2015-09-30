@@ -1,6 +1,6 @@
 module ArrayInterfaces
 
-import Base: connect, close, getindex, show, start, next, done, length, isopen
+import Base: connect, close, getindex, start, next, done, length, isopen
 importall ..DBAPIBase
 
 
@@ -38,10 +38,6 @@ type ColumnarArrayInterface <: DatabaseInterface end
 type ColumnarArrayConnection <: DatabaseConnection{ColumnarArrayInterface}
     columns::Vector{Column}
     closed::Bool
-end
-
-function Base.show(io::IO, connection::ColumnarArrayConnection)
-    print(io, typeof(connection), "(closed=$(!isopen(connection))")
 end
 
 function connect(
@@ -84,11 +80,9 @@ type ColumnarArrayCursor <: DatabaseCursor{ColumnarArrayInterface}
     ColumnarArrayCursor(connection) = new(connection)
 end
 
-function Base.show(io::IO, cursor::ColumnarArrayCursor)
-    print(io, typeof(cursor), " for ", cursor.connection)
-end
-
 cursor(connection::ColumnarArrayConnection) = ColumnarArrayCursor(connection)
+
+connection(cursor::ColumnarArrayConnection) = cursor.connection
 
 
 ### Queries

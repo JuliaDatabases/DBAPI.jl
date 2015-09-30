@@ -1,12 +1,19 @@
 module TestColumnarArrayInterface
 
 import DBAPI
-import DBAPI.ArrayInterfaces: ColumnarArrayInterface, ColumnarArrayQuery
+import DBAPI.ArrayInterfaces:
+    ColumnarArrayInterface,
+    ColumnarArrayQuery,
+    ArrayInterfaceError
 import Iterators: chain
 using Base.Test
 
 
 function main()
+    # invalid
+    @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo], Vector[])
+    @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, Symbol[], Vector[[1, 2, 3]])
+
     # empty
     connection = Base.connect(ColumnarArrayInterface, Symbol[], Vector[])
     @test isa(connection, DBAPI.DatabaseConnection)
@@ -77,6 +84,16 @@ function main()
         [3.0, 2.0, 1.0],
     ]
 
+    @test_throws DBAPI.NotImplementedError DBAPI.execute!(
+        cursor,
+        ColumnarArrayQuery([:foo, :bar], 1:3),
+        (),
+    )
+    @test_throws DBAPI.NotImplementedError DBAPI.executemany!(
+        cursor,
+        ColumnarArrayQuery([:foo, :bar], 1:3),
+        ((),()),
+    )
 end
 
 end

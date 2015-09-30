@@ -7,23 +7,30 @@ import Base.Collections: PriorityQueue
 type BadInterface <: DBAPI.DatabaseInterface end
 type BadConnection{T<:BadInterface} <: DBAPI.DatabaseConnection{T} end
 type BadCursor{T<:BadInterface} <: DBAPI.DatabaseCursor{T} end
+type BadQuery <: DBAPI.DatabaseQuery end
 
 function main()
+    dummy_io = IOBuffer()
+
     @test_throws DBAPI.NotImplementedError DBAPI.connect(BadInterface)
     @test_throws DBAPI.NotImplementedError DBAPI.connect(BadInterface, "foobar")
     @test_throws DBAPI.NotImplementedError DBAPI.connect(BadInterface, "foobar"; port=2345)
 
-    conn = BadConnection{BadInterface}()
+    connection = BadConnection{BadInterface}()
 
-    @test_throws DBAPI.NotImplementedError DBAPI.commit(conn)
-    @test_throws DBAPI.NotImplementedError DBAPI.isopen(conn)
-    @test_throws DBAPI.NotImplementedError DBAPI.close(conn)
-    @test_throws DBAPI.NotImplementedError DBAPI.isopen(conn)
-    @test_throws DBAPI.NotImplementedError DBAPI.commit(conn)
-    @test_throws DBAPI.NotSupportedError DBAPI.rollback(conn)
-    @test_throws DBAPI.NotImplementedError DBAPI.cursor(conn)
+    @test_throws DBAPI.NotImplementedError Base.show(connection)
+    @test_throws DBAPI.NotImplementedError DBAPI.commit(connection)
+    @test_throws DBAPI.NotImplementedError DBAPI.isopen(connection)
+    @test_throws DBAPI.NotImplementedError DBAPI.close(connection)
+    @test_throws DBAPI.NotImplementedError DBAPI.isopen(connection)
+    @test_throws DBAPI.NotImplementedError DBAPI.commit(connection)
+    @test_throws DBAPI.NotSupportedError DBAPI.rollback(connection)
+    @test_throws DBAPI.NotImplementedError DBAPI.cursor(connection)
 
     cursor = BadCursor{BadInterface}()
+
+    @test_throws DBAPI.NotImplementedError DBAPI.connection(cursor)
+    @test_throws DBAPI.NotImplementedError Base.show(cursor)
 
     @test_throws DBAPI.NotImplementedError DBAPI.rows(cursor)
     @test_throws DBAPI.NotSupportedError DBAPI.columns(cursor)
@@ -96,6 +103,12 @@ function main()
     for ds in data_structures
         @test_throws DBAPI.NotSupportedError DBAPI.fetchcolumnsinto!(ds, cursor)
     end
+
+    # testing that these methods exist and run
+    # @test_throws does not do that, unfortunately
+    Base.showerror(dummy_io, DBAPI.NotImplementedError{BadInterface}())
+    Base.showerror(dummy_io, DBAPI.NotSupportedError{BadInterface}())
+    Base.showerror(dummy_io, DBAPI.DatabaseQueryError(BadInterface, BadQuery()))
 end
 
 end

@@ -7,6 +7,7 @@ export cursor,
     rollback,
     rows,
     columns,
+    connection,
     fetchinto!,
     fetchrowsinto!,
     fetchcolumnsinto!,
@@ -19,7 +20,7 @@ export cursor,
     DatabaseQueryError
 
 
-import Base: connect, close, getindex, isopen
+import Base: connect, close, getindex, isopen, show
 
 abstract DatabaseInterface
 abstract DatabaseError{T<:DatabaseInterface} <: Exception
@@ -32,6 +33,14 @@ abstract DatabaseQuery
 
 immutable StringDatabaseQuery{T<:AbstractString} <: DatabaseQuery
     query::T
+end
+
+function show(io::IO, connection::DatabaseConnection)
+    print(io, typeof(connection), "(closed=$(!isopen(connection)))")
+end
+
+function show(io::IO, cursor::DatabaseCursor)
+    print(io, typeof(cursor), "(", connection(cursor), ")")
 end
 
 """
@@ -141,9 +150,18 @@ Some drivers may implement multiple cursor types, but all must follow the
 driver's implementation of `cursor` but this method must be implemented with
 reasonable defaults.
 
-Returns `cursor::DatabaseCursor`.
+Returns `DatabaseCursor{T}`.
 """
 function cursor{T<:DatabaseInterface}(conn::DatabaseConnection{T})
+    throw(NotImplementedError{T}())
+end
+
+"""
+Return the corresponding connection for a given cursor.
+
+Returns `DatabaseConnection{T}`.
+"""
+function connection{T<:DatabaseInterface}(cursor::DatabaseCursor{T})
     throw(NotImplementedError{T}())
 end
 
