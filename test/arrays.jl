@@ -25,6 +25,9 @@ function main()
     cursor = DBAPI.cursor(connection)
     @test isa(cursor, DBAPI.DatabaseCursor)
 
+    @test_throws ArrayInterfaceError DBAPI.rows(cursor)
+    @test_throws ArrayInterfaceError DBAPI.columns(cursor)
+
     @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:0))
     @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:1))
     @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:1))
@@ -83,6 +86,12 @@ function main()
         [1, 2, 3],
         [3.0, 2.0, 1.0],
     ]
+
+    @test cursor[3, :bar] == 1.0
+    @test cursor[1, :foo] == 1
+    @test_throws BoundsError cursor[4, :foo]
+    @test_throws BoundsError cursor[1, :one]
+    @test_throws BoundsError cursor[0, :one]
 
     @test_throws DBAPI.NotImplementedError DBAPI.execute!(
         cursor,

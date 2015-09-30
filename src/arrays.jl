@@ -82,7 +82,7 @@ end
 
 cursor(connection::ColumnarArrayConnection) = ColumnarArrayCursor(connection)
 
-connection(cursor::ColumnarArrayConnection) = cursor.connection
+connection(cursor::ColumnarArrayCursor) = cursor.connection
 
 
 ### Queries
@@ -190,7 +190,7 @@ function getindex(cursor::ColumnarArrayCursor, row_ind::Int, column_name::Symbol
             try
                 return column[row_ind]
             catch error
-                throw(if_failed)
+                rethrow(if_failed)
             end
         end
     end
@@ -204,7 +204,7 @@ function getindex(cursor::ColumnarArrayCursor, row_ind::Int, column_ind::Int)
     try
         return cursor.columns[column_ind][row_ind]
     catch error
-        throw(if_failed)
+        rethrow(if_failed)
     end
 end
 
