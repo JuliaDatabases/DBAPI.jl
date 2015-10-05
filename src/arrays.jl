@@ -27,6 +27,20 @@ done(column::AbstractColumn, state) = done(column.data, state)
 getindex(column::AbstractColumn, indexes...) = getindex(column.data, indexes...)
 length(column::AbstractColumn) = length(column.data)
 
+function allequal{T}(things::AbstractArray{T})
+    thing_set = Set{T}()
+
+    for thing in things
+        push!(thing_set, thing)
+
+        if length(thing_set) > 1
+            return false
+        end
+    end
+
+    return true
+end
+
 
 ### Interface
 
@@ -48,6 +62,10 @@ function connect(
 
     if length(names) != length(columns)
         throw(ArrayInterfaceError("Arrays of names and columns must be the same length"))
+    end
+
+    if !allequal(map(length, columns))
+        throw(ArrayInterfaceError("Columns must be the same length"))
     end
 
     ColumnarArrayConnection(

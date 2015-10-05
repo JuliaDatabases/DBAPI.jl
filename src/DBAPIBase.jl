@@ -8,26 +8,31 @@ export cursor,
     rows,
     columns,
     connection,
-    fetchinto!,
-    fetchrowsinto!,
-    fetchcolumnsinto!,
+    fetchintoarray!,
+    fetchintorows!,
+    fetchintocolumns!,
+    DatabaseFetcher,
     interface,
     DatabaseInterface,
     DatabaseError,
     DatabaseConnection,
     DatabaseCursor,
+    FixedLengthDatabaseCursor,
     DatabaseQuery,
     DatabaseQueryError
 
 
-import Base: connect, close, getindex, isopen, show
+import Base: connect, close, getindex, isopen, show, start, next, done, length
+
+import Iterators: imap
 
 abstract DatabaseInterface
 abstract DatabaseError{T<:DatabaseInterface} <: Exception
 abstract DatabaseConnection{T<:DatabaseInterface}
 abstract DatabaseCursor{T<:DatabaseInterface}
-Base.linearindexing(::Type{DatabaseCursor}) = Base.LinearSlow()
-Base.ndims(cursor::DatabaseCursor) = 2
+abstract FixedLengthDatabaseCursor{T} <: DatabaseCursor{T}
+Base.linearindexing(::Type{FixedLengthDatabaseCursor}) = Base.LinearSlow()
+Base.ndims(cursor::FixedLengthDatabaseCursor) = 2
 
 abstract DatabaseQuery
 
@@ -255,8 +260,8 @@ This method gets a single result value in row `i` in column `j`.
 
 This method is optional if rows or columns do not have a defined order.
 """
-function getindex{T<:DatabaseInterface}(cursor::DatabaseCursor{T}, i::Integer, j::Integer)
-    throw(NotSupportedError{T}())
+function getindex{T<:DatabaseInterface}(cursor::FixedLengthDatabaseCursor{T}, i::Integer, j::Integer)
+    throw(NotImplementedError{T}())
 end
 
 """
@@ -267,8 +272,8 @@ This method gets a single result value in row `i` in column named `col`.
 This method is optional if rows do not have a defined order or if columns do
 not have names.
 """
-function getindex{T<:DatabaseInterface}(cursor::DatabaseCursor{T}, i::Integer, col::Symbol)
-    throw(NotSupportedError{T}())
+function getindex{T<:DatabaseInterface}(cursor::FixedLengthDatabaseCursor{T}, i::Integer, col::Symbol)
+    throw(NotImplementedError{T}())
 end
 
 """
@@ -279,8 +284,8 @@ This method gets a single result value in row named `row` in column `j`.
 This method is optional if rows do not have names/keys or if columns do not
 have a defined order.
 """
-function getindex{T<:DatabaseInterface}(cursor::DatabaseCursor{T}, row::Symbol, j::Integer)
-    throw(NotSupportedError{T}())
+function getindex{T<:DatabaseInterface}(cursor::FixedLengthDatabaseCursor{T}, row::Symbol, j::Integer)
+    throw(NotImplementedError{T}())
 end
 
 """
@@ -291,8 +296,8 @@ This method gets a single result value in row named `row` in column named `col`.
 This method is optional if rows do not have names/keys or if columns do not
 have names.
 """
-function getindex{T<:DatabaseInterface}(cursor::DatabaseCursor{T}, row::Symbol, col::Symbol)
-    throw(NotSupportedError{T}())
+function getindex{T<:DatabaseInterface}(cursor::FixedLengthDatabaseCursor{T}, row::Symbol, col::Symbol)
+    throw(NotImplementedError{T}())
 end
 
 """
@@ -303,12 +308,41 @@ indexed by `col`.
 
 Any other row or column index types are optional.
 """
+function getindex{T<:DatabaseInterface}(cursor::FixedLengthDatabaseCursor{T}, row::Any, col::Any)
+    throw(NotImplementedError{T}())
+end
+
+"""
+Get result value from a database cursor.
+
+Indexing is not required for types which don't subtype
+FixedLengthDatabaseCursor.
+"""
 function getindex{T<:DatabaseInterface}(cursor::DatabaseCursor{T}, row::Any, col::Any)
     throw(NotSupportedError{T}())
 end
 
 """
-A terrible hack to make the fetchinto! signature work.
+Get the number of rows available from a database cursor.
+
+Returns `Int`
+"""
+function length{T<:DatabaseInterface}(cursor::FixedLengthDatabaseCursor{T})
+    throw(NotImplementedError{T}())
+end
+
+"""
+Get the number of rows available from a database cursor.
+
+`length` is not required for types which don't subtype
+FixedLengthDatabaseCursor.
+"""
+function length{T<:DatabaseInterface}(cursor::DatabaseCursor{T})
+    throw(NotSupportedError{T}())
+end
+
+"""
+A terrible hack to make the fetchintoarray! signature work.
 
 See https://github.com/JuliaLang/julia/issues/13156#issuecomment-140618981
 """
@@ -318,7 +352,7 @@ index_return_type(a::Associative) = valtype(a)
 index_return_type(a::Any) = eltype(a)
 
 each_index_tuple(a::Associative) = eachindex(a)
-each_index_tuple(a::Any) = map(ind -> ind2sub(a, ind), eachindex(a))
+each_index_tuple(a::Any) = imap(ind -> ind2sub(a, ind), eachindex(a))
 
 """
 Get results from a database cursor and store them in a preallocated
@@ -330,13 +364,18 @@ defined above.
 
 Returns the preallocated data structure.
 """
-function fetchinto!{T<:DatabaseInterface}(
+function fetchintoarray!{T<:DatabaseInterface}(
         preallocated::Union{AbstractMatrix, Associative},
-        cursor::DatabaseCursor{T}
+        cursor::FixedLengthDatabaseCursor{T},
+        offset::Int=0,
     )
-    for (i, j) in each_index_tuple(preallocated)
-        datum = cursor[i, j]
-        preallocated[i, j] = (
+
+    offset_row = offset
+
+    for (row, column) in each_index_tuple(preallocated)
+        offset_row = row + offset
+        datum = cursor[offset_row, column]
+        preallocated[row, column] = (
             isa(datum, Nullable) &&
             !(index_return_type(preallocated) <: Nullable ||
                 Nullable <: index_return_type(preallocated)) ?
@@ -345,7 +384,7 @@ function fetchinto!{T<:DatabaseInterface}(
         )
     end
 
-    return preallocated
+    return preallocated, offset_row
 end
 
 """
@@ -358,20 +397,25 @@ defined above.
 
 Returns the preallocated data structure.
 """
-function fetchrowsinto!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+function fetchintorows!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
         preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
-        cursor::DatabaseCursor{T}
+        cursor::FixedLengthDatabaseCursor{T},
+        offset::Int=0,
     )
-    for i in eachindex(preallocated), j in eachindex(preallocated[i])
-        datum = cursor[i, j]
-        preallocated[i][j] = (
-            isa(datum, Nullable) && !(index_return_type(preallocated[i]) <: Nullable) ?
+
+    offset_row = offset
+
+    for row in eachindex(preallocated), column in eachindex(preallocated[row])
+        offset_row = row + offset
+        datum = cursor[offset_row, column]
+        preallocated[row][column] = (
+            isa(datum, Nullable) && !(index_return_type(preallocated[row]) <: Nullable) ?
             get(datum) :
             datum
         )
     end
 
-    return preallocated
+    return preallocated, offset_row
 end
 
 """
@@ -382,22 +426,65 @@ This out-of-the-box method supports a huge variety of data structures under the
 `AbstractArray` and `Associative` supertypes. It uses the `getindex` functions
 defined above.
 
+`offset` represents the offset into the cursor denoting where to start fetching
+data.
+
 Returns the preallocated data structure.
 """
-function fetchcolumnsinto!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+function fetchintocolumns!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
         preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
-        cursor::DatabaseCursor{T}
+        cursor::FixedLengthDatabaseCursor{T},
+        offset::Int=0,
     )
-    for j in eachindex(preallocated), i in eachindex(preallocated[j])
-        datum = cursor[i, j]
-        preallocated[j][i] = (
-            isa(datum, Nullable) && !(index_return_type(preallocated[i]) <: Nullable) ?
+
+    offset_row = offset
+
+    for column in eachindex(preallocated), row in eachindex(preallocated[column])
+        offset_row = row + offset
+        datum = cursor[offset_row, column]
+        preallocated[column][row] = (
+            isa(datum, Nullable) && !(index_return_type(preallocated[row]) <: Nullable) ?
             get(datum) :
             datum
         )
     end
 
-    return preallocated
+    return preallocated, offset_row
 end
+
+typealias Orientation Union{Val{:rows}, Val{:columns}, Val{:array}}
+
+immutable DatabaseFetcher{O<:Orientation, T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}
+    orientation::O
+    preallocated::U
+    cursor::FixedLengthDatabaseCursor{T}
+end
+
+function DatabaseFetcher{T, U}(
+    # this is the actual required type for the `preallocated` field,
+    # however there is no way to express that through parameters in the
+    # type definition
+        orientation::Symbol,
+        preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
+        cursor::FixedLengthDatabaseCursor{T},
+    )
+
+    return DatabaseFetcher(Val{orientation}(), preallocated, cursor)
+end
+
+fetch_function(::DatabaseFetcher{Val{:columns}}) = fetchintocolumns!
+fetch_function(::DatabaseFetcher{Val{:rows}}) = fetchintorows!
+fetch_function(::DatabaseFetcher{Val{:array}}) = fetchintoarray!
+
+start(fetcher::DatabaseFetcher) = (fetcher.preallocated, 0)
+
+function next{O, T<:DatabaseInterface, U}(fetcher::DatabaseFetcher{O, T, U}, state)
+    preallocated, offset = state
+    preallocated::U, new_offset = fetch_function(fetcher)(preallocated, fetcher.cursor, offset)
+end
+
+done(fetcher::DatabaseFetcher, state) = state >= length(fetcher.cursor)
+
+
 
 end # module

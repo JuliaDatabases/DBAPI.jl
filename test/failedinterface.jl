@@ -6,7 +6,7 @@ import Base.Collections: PriorityQueue
 
 type BadInterface <: DBAPI.DatabaseInterface end
 type BadConnection{T<:BadInterface} <: DBAPI.DatabaseConnection{T} end
-type BadCursor{T<:BadInterface} <: DBAPI.DatabaseCursor{T} end
+type BadCursor{T<:BadInterface} <: DBAPI.FixedLengthDatabaseCursor{T} end
 type BadQuery <: DBAPI.DatabaseQuery end
 
 function main()
@@ -40,11 +40,11 @@ function main()
 
     for i in [12, :twelve]
         for j in [12, :twelve]
-            @test_throws DBAPI.NotSupportedError cursor[i, j]
+            @test_throws DBAPI.NotImplementedError cursor[i, j]
         end
     end
 
-    @test_throws DBAPI.NotSupportedError cursor["far", Set([1,2,3])]
+    @test_throws DBAPI.NotImplementedError cursor["far", Set([1,2,3])]
 
     empty_data_structures = (
         Array{Any}[Array{Any}(0)],
@@ -72,36 +72,36 @@ function main()
     )
 
     filled_2d_pq = PriorityQueue()
-    filled_pq[1, 1] = 1
+    filled_2d_pq[1, 1] = 1
 
     filled_2d_data_structures = (
         Array{Any}(1, 1),
         Dict{Any, Any}((1, 1)=>5),
-        filled_pq,
+        filled_2d_pq,
     )
 
     for ds in empty_2d_data_structures
-        @test ds == DBAPI.fetchinto!(ds, cursor)
+        @test (ds, 0) == DBAPI.fetchintoarray!(ds, cursor)
     end
 
     for ds in empty_data_structures
-        @test ds == DBAPI.fetchrowsinto!(ds, cursor)
+        @test (ds, 0) == DBAPI.fetchintorows!(ds, cursor)
     end
 
     for ds in empty_data_structures
-        @test ds == DBAPI.fetchcolumnsinto!(ds, cursor)
+        @test (ds, 0) == DBAPI.fetchintocolumns!(ds, cursor)
     end
 
     for ds in filled_2d_data_structures
-        @test_throws DBAPI.NotSupportedError DBAPI.fetchinto!(ds, cursor)
+        @test_throws DBAPI.NotImplementedError DBAPI.fetchintoarray!(ds, cursor)
     end
 
     for ds in data_structures
-        @test_throws DBAPI.NotSupportedError DBAPI.fetchrowsinto!(ds, cursor)
+        @test_throws DBAPI.NotImplementedError DBAPI.fetchintorows!(ds, cursor)
     end
 
     for ds in data_structures
-        @test_throws DBAPI.NotSupportedError DBAPI.fetchcolumnsinto!(ds, cursor)
+        @test_throws DBAPI.NotImplementedError DBAPI.fetchintocolumns!(ds, cursor)
     end
 
     # testing that these methods exist and run
@@ -109,6 +109,24 @@ function main()
     Base.showerror(dummy_io, DBAPI.NotImplementedError{BadInterface}())
     Base.showerror(dummy_io, DBAPI.NotSupportedError{BadInterface}())
     Base.showerror(dummy_io, DBAPI.DatabaseQueryError(BadInterface, BadQuery()))
+
+    @test_throws DBAPI.NotImplementedError begin
+        for ds in DBAPI.DatabaseFetcher(:rows, empty_data_structures[1], cursor)
+            @test false  # should never be reached
+        end
+    end
+
+    @test_throws DBAPI.NotImplementedError begin
+        for ds in DBAPI.DatabaseFetcher(:columns, empty_data_structures[1], cursor)
+            @test false  # should never be reached
+        end
+    end
+
+    @test_throws DBAPI.NotImplementedError begin
+        for ds in DBAPI.DatabaseFetcher(:array, empty_data_structures[1], cursor)
+            @test false  # should never be reached
+        end
+    end
 end
 
 end
