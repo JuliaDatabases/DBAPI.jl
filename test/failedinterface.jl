@@ -51,7 +51,8 @@ function main()
         Array{Any}[Array{Any}(0, 0)],
         Dict{Any, Any}[Dict{Any, Any}()],
         PriorityQueue[PriorityQueue()],
-        Dict{Any,Array{Any}}(),
+        Dict{Any,Array{Any}}(1=>Array{Any}(0)),
+        Dict{Any,Array{Any}}(1=>Array{Any}(0, 0)),
     )
 
     empty_2d_data_structures = (
@@ -85,7 +86,8 @@ function main()
     end
 
     for ds in empty_data_structures
-        @test (ds, 0) == DBAPI.fetchintorows!(ds, cursor)
+        # in this case there is a row, it's just empty
+        @test (ds, 1) == DBAPI.fetchintorows!(ds, cursor)
     end
 
     for ds in empty_data_structures
@@ -110,21 +112,27 @@ function main()
     Base.showerror(dummy_io, DBAPI.NotSupportedError{BadInterface}())
     Base.showerror(dummy_io, DBAPI.DatabaseQueryError(BadInterface, BadQuery()))
 
-    @test_throws DBAPI.NotImplementedError begin
-        for ds in DBAPI.DatabaseFetcher(:rows, empty_data_structures[1], cursor)
-            @test false  # should never be reached
+    for empty_ds in empty_data_structures
+        @test_throws DBAPI.NotImplementedError begin
+            for ds in DBAPI.DatabaseFetcher(:rows, empty_ds, cursor)
+                @test false  # should never be reached
+            end
         end
     end
 
-    @test_throws DBAPI.NotImplementedError begin
-        for ds in DBAPI.DatabaseFetcher(:columns, empty_data_structures[1], cursor)
-            @test false  # should never be reached
+    for empty_ds in empty_data_structures
+        @test_throws DBAPI.NotImplementedError begin
+            for ds in DBAPI.DatabaseFetcher(:columns, empty_ds, cursor)
+                @test false  # should never be reached
+            end
         end
     end
 
-    @test_throws DBAPI.NotImplementedError begin
-        for ds in DBAPI.DatabaseFetcher(:array, empty_data_structures[1], cursor)
-            @test false  # should never be reached
+    for empty_ds in empty_data_structures
+        @test_throws DBAPI.NotImplementedError begin
+            for ds in DBAPI.DatabaseFetcher(:array, empty_ds, cursor)
+                @test false  # should never be reached
+            end
         end
     end
 end

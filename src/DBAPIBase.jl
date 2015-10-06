@@ -22,7 +22,7 @@ export cursor,
     DatabaseQueryError
 
 
-import Base: connect, close, getindex, isopen, show, start, next, done, length
+import Base: connect, close, getindex, isopen, show, start, next, done, length, isempty
 
 import Iterators: imap
 
@@ -362,10 +362,12 @@ This out-of-the-box method supports a huge variety of data structures under the
 `AbstractArray` and `Associative` supertypes. It uses the `getindex` functions
 defined above.
 
+When 2d indexing is used on an `Associative`, the result is usually tuple keys.
+
 Returns the preallocated data structure.
 """
 function fetchintoarray!{T<:DatabaseInterface}(
-        preallocated::Union{AbstractMatrix, Associative},
+        preallocated::Union{AbstractArray, Associative},
         cursor::FixedLengthDatabaseCursor{T},
         offset::Int=0,
     )
@@ -376,6 +378,37 @@ function fetchintoarray!{T<:DatabaseInterface}(
         offset_row = row + offset
         datum = cursor[offset_row, column]
         preallocated[row, column] = (
+            isa(datum, Nullable) &&
+            !(index_return_type(preallocated) <: Nullable ||
+                Nullable <: index_return_type(preallocated)) ?
+            get(datum) :
+            datum
+        )
+    end
+
+    return preallocated, offset_row
+end
+
+"""
+Get results from a database cursor and store them in a preallocated vector.
+
+This out-of-the-box method supports a huge variety of data structures under the
+`AbstractVector` supertype. It uses the `getindex` functions defined above.
+
+Returns the preallocated vector.
+"""
+function fetchintoarray!{T<:DatabaseInterface}(
+        preallocated::AbstractVector,
+        cursor::FixedLengthDatabaseCursor{T},
+        offset::Int=0,
+    )
+
+    offset_row = offset
+
+    for row in eachindex(preallocated)
+        offset_row = row + offset
+        datum = cursor[offset_row, 1]
+        preallocated[row] = (
             isa(datum, Nullable) &&
             !(index_return_type(preallocated) <: Nullable ||
                 Nullable <: index_return_type(preallocated)) ?
@@ -405,14 +438,17 @@ function fetchintorows!{T<:DatabaseInterface, U<:Union{AbstractArray, Associativ
 
     offset_row = offset
 
-    for row in eachindex(preallocated), column in eachindex(preallocated[row])
+    for row in eachindex(preallocated)
         offset_row = row + offset
-        datum = cursor[offset_row, column]
-        preallocated[row][column] = (
-            isa(datum, Nullable) && !(index_return_type(preallocated[row]) <: Nullable) ?
-            get(datum) :
-            datum
-        )
+
+        for column in eachindex(preallocated[row])
+            datum = cursor[offset_row, column]
+            preallocated[row][column] = (
+                isa(datum, Nullable) && !(index_return_type(preallocated[row]) <: Nullable) ?
+                get(datum) :
+                datum
+            )
+        end
     end
 
     return preallocated, offset_row
@@ -452,6 +488,33 @@ function fetchintocolumns!{T<:DatabaseInterface, U<:Union{AbstractArray, Associa
     return preallocated, offset_row
 end
 
+function fetchintoarray!{T<:DatabaseInterface}(
+        preallocated::Union{AbstractArray, Associative},
+        cursor::DatabaseCursor{T},
+        offset::Int=0,
+    )
+
+    throw(NotSupportedError{T}())
+end
+
+function fetchintorows!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+        preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
+        cursor::DatabaseCursor{T},
+        offset::Int=0,
+    )
+
+    throw(NotSupportedError{T}())
+end
+
+function fetchintocolumns!{T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+        preallocated::Union{AbstractArray{U}, AssociativeVK{U}},
+        cursor::DatabaseCursor{T},
+        offset::Int=0,
+    )
+
+    throw(NotSupportedError{T}())
+end
+
 typealias Orientation Union{Val{:rows}, Val{:columns}, Val{:array}}
 
 immutable DatabaseFetcher{O<:Orientation, T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}
@@ -476,14 +539,34 @@ fetch_function(::DatabaseFetcher{Val{:columns}}) = fetchintocolumns!
 fetch_function(::DatabaseFetcher{Val{:rows}}) = fetchintorows!
 fetch_function(::DatabaseFetcher{Val{:array}}) = fetchintoarray!
 
+first_empty(a::Associative) = isempty(first(values(a)))
+first_empty(a) = isempty(first(a))
+
+function isempty{O<:Union{Val{:rows}, Val{:array}}, T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+        fetcher::DatabaseFetcher{O, T, U}
+    )
+
+    isempty(fetcher.preallocated)
+end
+
+function isempty{O<:Val{:columns}, T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}(
+        fetcher::DatabaseFetcher{O, T, U}
+    )
+
+    isempty(fetcher.preallocated) || first_empty(fetcher.preallocated)
+end
+
 start(fetcher::DatabaseFetcher) = (fetcher.preallocated, 0)
 
 function next{O, T<:DatabaseInterface, U}(fetcher::DatabaseFetcher{O, T, U}, state)
     preallocated, offset = state
     preallocated::U, new_offset = fetch_function(fetcher)(preallocated, fetcher.cursor, offset)
+    return preallocated, (preallocated, new_offset)
 end
 
-done(fetcher::DatabaseFetcher, state) = state >= length(fetcher.cursor)
+function done(fetcher::DatabaseFetcher, state)
+    state[2] >= length(fetcher.cursor) || isempty(fetcher)
+end
 
 
 

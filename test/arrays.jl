@@ -1,12 +1,15 @@
 module TestColumnarArrayInterface
 
+using Base.Test
+import Base.Collections: PriorityQueue
+
+import Iterators: chain
+
 import DBAPI
 import DBAPI.ArrayInterfaces:
     ColumnarArrayInterface,
     ColumnarArrayQuery,
     ArrayInterfaceError
-import Iterators: chain
-using Base.Test
 
 
 function main()
@@ -38,10 +41,12 @@ function main()
     @test isempty(collect(DBAPI.columns(cursor)))
     @test_throws BoundsError cursor[1, 1]
     @test_throws BoundsError cursor[1, :one]
+    @test isempty(cursor)
+    @test length(cursor) == 0
 
-    @test_throws DBAPI.NotSupportedError cursor[:one, 1]
-    @test_throws DBAPI.NotSupportedError cursor[:one, :one]
-    @test_throws DBAPI.NotSupportedError cursor["one", "one"]
+    @test_throws DBAPI.NotImplementedError cursor[:one, 1]
+    @test_throws DBAPI.NotImplementedError cursor[:one, :one]
+    @test_throws DBAPI.NotImplementedError cursor["one", "one"]
 
     @test Base.close(connection) == nothing
     @test Base.isopen(connection) == false
@@ -72,6 +77,8 @@ function main()
 
     @test isempty(collect(DBAPI.rows(cursor)))
     @test isempty(collect(DBAPI.columns(cursor)))
+    @test isempty(cursor)
+    @test length(cursor) == 0
     @test_throws BoundsError cursor[1, 1]
     @test_throws BoundsError cursor[1, :one]
 
@@ -93,6 +100,114 @@ function main()
     @test_throws BoundsError cursor[1, :one]
     @test_throws BoundsError cursor[0, :one]
 
+    @test !isempty(cursor)
+    @test length(cursor) == length(row_results)
+
+    empty_data_structures = (
+        Array{Any}[Array{Any}(0)],
+        Array{Any}[Array{Any}(0, 0)],
+        Dict{Any, Any}[Dict{Any, Any}()],
+        PriorityQueue[PriorityQueue()],
+        Dict{Any,Array{Any}}(1=>Array{Any}(0)),
+        Dict{Any,Array{Any}}(1=>Array{Any}(0, 0)),
+    )
+
+    empty_2d_data_structures = (
+        Array{Any}(0,0),
+        Dict{Any, Any}(),
+        PriorityQueue(),
+    )
+
+    filled_pq = PriorityQueue()
+    filled_pq[1] = 1
+
+    filled_data_structures = (
+        Array{Any}[Array{Any}(1)],
+        Array{Any}[Array{Any}(1, 1)],
+        Dict{Any, Any}[Dict{Any, Any}(1=>5)],
+        PriorityQueue[filled_pq],
+        Dict{Any,Array{Any}}(1=>Array{Any}(1)),
+    )
+
+    filled_2d_pq = PriorityQueue()
+    filled_2d_pq[1, 1] = 1
+
+    filled_2d_data_structures = (
+        Array{Any}(1, 1),
+        Dict{Any, Any}((1, 1)=>5),
+        filled_2d_pq,
+    )
+
+    for ds in empty_data_structures
+        # ds will be a collection of an empty row
+        @test (ds, 1) == DBAPI.fetchintorows!(ds, cursor)
+    end
+
+    for ds in empty_data_structures
+        @test (ds, 0) == DBAPI.fetchintocolumns!(ds, cursor)
+    end
+
+    for ds in empty_2d_data_structures
+        @test (ds, 0) == DBAPI.fetchintoarray!(ds, cursor)
+    end
+
+    for ds in filled_data_structures
+        @test (ds, 1) == DBAPI.fetchintorows!(ds, cursor)
+    end
+
+    for ds in filled_data_structures
+        @test (ds, 1) == DBAPI.fetchintocolumns!(ds, cursor)
+    end
+
+    for ds in filled_2d_data_structures
+        @test (ds, 1) == DBAPI.fetchintoarray!(ds, cursor)
+    end
+
+    first_empty(a::Associative) = isempty(first(values(a)))
+    first_empty(a) = isempty(first(a))
+
+    for empty_ds in empty_data_structures
+        iters = 0
+        for ds in DBAPI.DatabaseFetcher(:rows, empty_ds, cursor)
+            # ds will be a collection containing an empty row
+            @test first_empty(ds)
+            iters += 1
+        end
+        @test iters == length(cursor)
+    end
+
+    for empty_ds in empty_data_structures
+        for ds in DBAPI.DatabaseFetcher(:columns, empty_ds, cursor)
+            @test false  # should never be reached
+        end
+    end
+
+    for empty_ds in empty_2d_data_structures
+        for ds in DBAPI.DatabaseFetcher(:array, empty_ds, cursor)
+            @test false  # should never be reached
+        end
+    end
+
+    for filled_ds in filled_data_structures
+        for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:rows, filled_ds, cursor))
+            @test ds[1][1] == row_results[idx][1]
+        end
+    end
+
+    for filled_ds in filled_data_structures
+        for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:columns, filled_ds, cursor))
+            @test ds[1][1] == row_results[idx][1]
+        end
+    end
+
+    for filled_ds in filled_2d_data_structures
+        for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:array, filled_ds, cursor))
+            @test ds[1, 1] == row_results[idx][1]
+            @test length(ds) == 1
+        end
+    end
+
+    # bad queries
     @test_throws DBAPI.NotImplementedError DBAPI.execute!(
         cursor,
         ColumnarArrayQuery([:foo, :bar], 1:3),

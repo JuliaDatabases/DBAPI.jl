@@ -1,6 +1,6 @@
 module ArrayInterfaces
 
-import Base: connect, close, getindex, start, next, done, length, isopen
+import Base: connect, close, getindex, start, next, done, length, isopen, isempty
 importall ..DBAPIBase
 
 
@@ -91,7 +91,7 @@ isopen(connection::ColumnarArrayConnection) = !connection.closed
 
 ### Cursors
 
-type ColumnarArrayCursor <: DatabaseCursor{ColumnarArrayInterface}
+type ColumnarArrayCursor <: FixedLengthDatabaseCursor{ColumnarArrayInterface}
     connection::ColumnarArrayConnection
     columns::Vector{SubColumn}
 
@@ -101,6 +101,10 @@ end
 cursor(connection::ColumnarArrayConnection) = ColumnarArrayCursor(connection)
 
 connection(cursor::ColumnarArrayCursor) = cursor.connection
+
+isempty(cursor::ColumnarArrayCursor) = isempty(cursor.columns)
+
+length(cursor::ColumnarArrayCursor) = isempty(cursor) ? 0 : length(first(cursor.columns))
 
 
 ### Queries
