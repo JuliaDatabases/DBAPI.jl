@@ -16,6 +16,7 @@ function main()
     # invalid
     @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo], Vector[])
     @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, Symbol[], Vector[[1, 2, 3]])
+    @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo], Vector[[1], [2, 3]])
 
     # empty
     connection = Base.connect(ColumnarArrayInterface, Symbol[], Vector[])
@@ -88,6 +89,7 @@ function main()
         (2, 2.0),
         (3, 1.0),
     ]
+    nullable_row_results = map(x -> map(Nullable{Any}, x), row_results)
     @test collect(DBAPI.rows(cursor)) == row_results
     @test collect(DBAPI.columns(cursor)) == Vector[
         [1, 2, 3],
@@ -110,12 +112,19 @@ function main()
         PriorityQueue[PriorityQueue()],
         Dict{Any,Array{Any}}(1=>Array{Any}(0)),
         Dict{Any,Array{Any}}(1=>Array{Any}(0, 0)),
+        Array{Nullable{Any}}[Array{Nullable{Any}}(0)],
+        Array{Nullable{Any}}[Array{Nullable{Any}}(0, 0)],
+        Dict{Any, Nullable{Any}}[Dict{Any, Nullable{Any}}()],
+        Dict{Any,Array{Nullable{Any}}}(1=>Array{Nullable{Any}}(0)),
+        Dict{Any,Array{Nullable{Any}}}(1=>Array{Nullable{Any}}(0, 0)),
     )
 
     empty_2d_data_structures = (
         Array{Any}(0,0),
         Dict{Any, Any}(),
         PriorityQueue(),
+        Array{Nullable{Any}}(0,0),
+        Dict{Any, Nullable{Any}}(),
     )
 
     filled_pq = PriorityQueue()
@@ -126,41 +135,49 @@ function main()
         Array{Any}[Array{Any}(1, 1)],
         Dict{Any, Any}[Dict{Any, Any}(1=>5)],
         PriorityQueue[filled_pq],
-        Dict{Any,Array{Any}}(1=>Array{Any}(1)),
+        Dict{Any,Array{Nullable{Any}}}(1=>Array{Nullable{Any}}(1)),
+        Array{Nullable{Any}}[Array{Nullable{Any}}(1)],
+        Array{Nullable{Any}}[Array{Nullable{Any}}(1, 1)],
+        Dict{Any, Nullable{Any}}[Dict{Any, Nullable{Any}}(1=>5)],
+        Dict{Any,Array{Nullable{Any}}}(1=>Array{Nullable{Any}}(1)),
     )
 
     filled_2d_pq = PriorityQueue()
     filled_2d_pq[1, 1] = 1
 
     filled_2d_data_structures = (
+        Array{Any}(1),
         Array{Any}(1, 1),
         Dict{Any, Any}((1, 1)=>5),
         filled_2d_pq,
+        Array{Nullable{Any}}(1),
+        Array{Nullable{Any}}(1, 1),
+        Dict{Any, Nullable{Any}}((1, 1)=>Nullable{Any}(5)),
     )
 
     for ds in empty_data_structures
         # ds will be a collection of an empty row
-        @test (ds, 1) == DBAPI.fetchintorows!(ds, cursor)
+        @test (ds, 1) === DBAPI.fetchintorows!(ds, cursor)
     end
 
     for ds in empty_data_structures
-        @test (ds, 0) == DBAPI.fetchintocolumns!(ds, cursor)
+        @test (ds, 0) === DBAPI.fetchintocolumns!(ds, cursor)
     end
 
     for ds in empty_2d_data_structures
-        @test (ds, 0) == DBAPI.fetchintoarray!(ds, cursor)
+        @test (ds, 0) === DBAPI.fetchintoarray!(ds, cursor)
     end
 
     for ds in filled_data_structures
-        @test (ds, 1) == DBAPI.fetchintorows!(ds, cursor)
+        @test (ds, 1) === DBAPI.fetchintorows!(ds, cursor)
     end
 
     for ds in filled_data_structures
-        @test (ds, 1) == DBAPI.fetchintocolumns!(ds, cursor)
+        @test (ds, 1) === DBAPI.fetchintocolumns!(ds, cursor)
     end
 
     for ds in filled_2d_data_structures
-        @test (ds, 1) == DBAPI.fetchintoarray!(ds, cursor)
+        @test (ds, 1) === DBAPI.fetchintoarray!(ds, cursor)
     end
 
     first_empty(a::Associative) = isempty(first(values(a)))
@@ -188,21 +205,27 @@ function main()
         end
     end
 
+    comparison_data(::Any) = row_results
+    comparison_data(::Nullable) = nullable_row_results
+
     for filled_ds in filled_data_structures
         for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:rows, filled_ds, cursor))
-            @test ds[1][1] == row_results[idx][1]
+            item = ds[1][1]
+            @test item === comparison_data(item)[idx][1]
         end
     end
 
     for filled_ds in filled_data_structures
         for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:columns, filled_ds, cursor))
-            @test ds[1][1] == row_results[idx][1]
+            item = ds[1][1]
+            @test item === comparison_data(item)[idx][1]
         end
     end
 
     for filled_ds in filled_2d_data_structures
         for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:array, filled_ds, cursor))
-            @test ds[1, 1] == row_results[idx][1]
+            item = ds[1, 1]
+            @test item === comparison_data(item)[idx][1]
             @test length(ds) == 1
         end
     end
