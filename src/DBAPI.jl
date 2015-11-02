@@ -7,6 +7,7 @@ include("arrays.jl")
 
 @reexport using .DBAPIBase
 import .DBAPIBase: NotImplementedError, NotSupportedError
+import .ArrayInterfaces: ColumnarArrayInterface
 export ColumnarArrayInterface
 
-end
+end # module
