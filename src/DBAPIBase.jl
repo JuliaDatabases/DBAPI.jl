@@ -145,6 +145,26 @@ function rollback{T<:DatabaseInterface}(conn::DatabaseConnection{T})
 end
 
 """
+Constructs a database connection, runs `func` on that connection, and ensures the
+connection is closed after `func` completes or errors.
+
+Returns the result of calling `func`.
+"""
+function connect{T<:DatabaseInterface}(func::Function, ::Type{T}, args...; kwargs...)
+    conn = connect(T, args...; kwargs...)
+
+    try
+        return func(conn)
+    finally
+        try
+            close(conn)
+        catch e
+            warn(e)
+        end
+    end
+end
+
+"""
 Create a new database cursor.
 
 If the database does not implement cursors, the driver must implement a cursor

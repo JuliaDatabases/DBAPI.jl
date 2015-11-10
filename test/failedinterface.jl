@@ -67,6 +67,7 @@ function main()
     @test_throws DBAPI.NotImplementedError DBAPI.connect(BadInterface)
     @test_throws DBAPI.NotImplementedError DBAPI.connect(BadInterface, "foobar")
     @test_throws DBAPI.NotImplementedError DBAPI.connect(BadInterface, "foobar"; port=2345)
+    @test_throws DBAPI.NotImplementedError DBAPI.connect(identity, BadInterface)
 
     connection = BadConnection()
 

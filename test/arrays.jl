@@ -15,8 +15,14 @@ import DBAPI.ArrayInterfaces:
 function main()
     # invalid
     @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo], Vector[])
+    @test_throws ArrayInterfaceError Base.connect(identity, ColumnarArrayInterface, [:foo], Vector[])
     @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, Symbol[], Vector[[1, 2, 3]])
     @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo, :bar], Vector[[1], [2, 3]])
+
+    # do block (without the do block)
+    connection = Base.connect(identity, ColumnarArrayInterface, Symbol[], Vector[])
+    @test isa(connection, DBAPI.DatabaseConnection)
+    @test DBAPI.isopen(connection) == false
 
     # empty
     connection = Base.connect(ColumnarArrayInterface, Symbol[], Vector[])
