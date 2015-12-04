@@ -39,19 +39,27 @@ abstract FixedLengthDatabaseCursor{T} <: DatabaseCursor{T}
 Base.linearindexing(::Type{FixedLengthDatabaseCursor}) = Base.LinearSlow()
 Base.ndims(cursor::FixedLengthDatabaseCursor) = 2
 
+"A database query."
 abstract DatabaseQuery
+
+"A database query which includes a set of parameters."
 abstract ParameterQuery <: DatabaseQuery
+
+"A database query which includes a set of parameter sets."
 abstract MultiparameterQuery <: ParameterQuery
 
+"A database query stored in a string."
 immutable SimpleStringQuery{T<:AbstractString} <: DatabaseQuery
     query::T
 end
 
+"A string database query accompanied by a set of parameters."
 immutable StringParameterQuery{T<:AbstractString, S} <: ParameterQuery
     query::T
     params::S
 end
 
+"A string database query accompanied by a set of parameter sets."
 immutable StringMultiparameterQuery{T<:AbstractString, S} <: MultiparameterQuery
     query::T
     param_list::S
@@ -217,8 +225,12 @@ Run a query on a database.
 The results of the query are not returned by this function but are accessible
 through the cursor.
 
-`parameters` can be any iterable of positional parameters, or of some
-T<:Associative for keyword/named parameters.
+`query` can be any subtype of `DatabaseQuery`. There are some query types
+designed to work for many databases (e.g. `SimpleStringQuery`,
+`StringParameterQuery`, `StringMultiparameterQuery`) and it is suggested that
+drivers which support queries in the form of strings implement this method
+for those query types. However, it is only required that some query type be
+supported.
 
 Returns `nothing`.
 """
@@ -227,6 +239,20 @@ function execute!{T<:DatabaseInterface}(
     query::DatabaseQuery
 )
     throw(NotImplementedError{T}())
+end
+
+function execute!{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    query::SimpleStringQuery
+)
+    throw(NotSupportedError{T}())
+end
+
+function execute!{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    query::StringParameterQuery
+)
+    throw(NotSupportedError{T}())
 end
 
 function execute!{T<:DatabaseInterface}(
@@ -250,8 +276,9 @@ Run a query on a database multiple times with different parameters.
 The results of the queries are not returned by this function. The result of
 the final query run is accessible by the cursor.
 
-`parameters` can be any iterable of a set of any iterables of positional
-parameters, or items of some T<:Associative for keyword/named parameters.
+`query` can be any subtype of `MultiparameterQuery`. A `MultiparameterQuery`
+typically contains an iterable of iterables of parameters and causes a query to
+be executed on each parameter set.
 
 Returns `nothing`.
 """
@@ -259,7 +286,7 @@ function execute!{T<:DatabaseInterface}(
     cursor::DatabaseCursor{T},
     query::MultiparameterQuery
 )
-    throw(NotImplementedError{T}())
+    throw(NotSupportedError{T}())
 end
 
 """

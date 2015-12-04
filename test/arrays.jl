@@ -271,6 +271,24 @@ facts("Array interface") do
         [Nullable(2), Nullable(3)],
         [2.0, 1.0],
     ]) --> true
+
+    # unsupported query types
+    @fact_throws DBAPI.NotSupportedError DBAPI.execute!(
+        cursor,
+        "[:foo, :bar], 1:3",
+    )
+    @fact_throws DBAPI.NotSupportedError DBAPI.execute!(
+        cursor,
+        "[:foo, :bar], 1:3",
+        (),
+    )
+    @fact_throws DBAPI.NotSupportedError DBAPI.execute!(
+        cursor,
+        DBAPI.StringMultiparameterQuery(
+            "[:foo, :bar], 1:3",
+            ((),())
+        ),
+    )
 end
 
 end

@@ -128,7 +128,7 @@ facts("Failed Interface") do
     @fact_throws DBAPI.NotImplementedError DBAPI.rows(cursor)
     @fact_throws DBAPI.NotSupportedError DBAPI.columns(cursor)
 
-    @fact_throws DBAPI.NotImplementedError DBAPI.execute!(cursor, "foobar", (1, "d"))
+    @fact_throws DBAPI.NotSupportedError DBAPI.execute!(cursor, "foobar", (1, "d"))
 
     for i in [12, :twelve]
         for j in [12, :twelve]
