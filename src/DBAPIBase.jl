@@ -19,6 +19,11 @@ export cursor,
     DatabaseCursor,
     FixedLengthDatabaseCursor,
     DatabaseQuery,
+    ParameterQuery,
+    MultiparameterQuery,
+    SimpleStringQuery,
+    StringParameterQuery,
+    StringMultiparameterQuery,
     DatabaseQueryError
 
 
@@ -35,10 +40,26 @@ Base.linearindexing(::Type{FixedLengthDatabaseCursor}) = Base.LinearSlow()
 Base.ndims(cursor::FixedLengthDatabaseCursor) = 2
 
 abstract DatabaseQuery
+abstract ParameterQuery <: DatabaseQuery
+abstract MultiparameterQuery <: ParameterQuery
 
-immutable StringDatabaseQuery{T<:AbstractString} <: DatabaseQuery
+immutable SimpleStringQuery{T<:AbstractString} <: DatabaseQuery
     query::T
 end
+
+immutable StringParameterQuery{T<:AbstractString, S} <: ParameterQuery
+    query::T
+    params::S
+end
+
+immutable StringMultiparameterQuery{T<:AbstractString, S} <: MultiparameterQuery
+    query::T
+    param_list::S
+end
+
+typealias StringQuery Union{
+    SimpleStringQuery, StringParameterQuery, StringMultiparameterQuery
+}
 
 function show(io::IO, connection::DatabaseConnection)
     print(io, typeof(connection), "(closed=$(!isopen(connection)))")
@@ -202,19 +223,25 @@ T<:Associative for keyword/named parameters.
 Returns `nothing`.
 """
 function execute!{T<:DatabaseInterface}(
-        cursor::DatabaseCursor{T},
-        query::DatabaseQuery,
-        parameters=(),
-    )
+    cursor::DatabaseCursor{T},
+    query::DatabaseQuery
+)
     throw(NotImplementedError{T}())
 end
 
 function execute!{T<:DatabaseInterface}(
-        cursor::DatabaseCursor{T},
-        query::AbstractString,
-        parameters=(),
-    )
-    execute!(cursor, StringDatabaseQuery(query), parameters)
+    cursor::DatabaseCursor{T},
+    query::AbstractString
+)
+    execute!(cursor, SimpleStringQuery(query))
+end
+
+function execute!{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    query::AbstractString,
+    params
+)
+    execute!(cursor, StringParameterQuery(query, params))
 end
 
 """
@@ -228,24 +255,11 @@ parameters, or items of some T<:Associative for keyword/named parameters.
 
 Returns `nothing`.
 """
-function executemany!{T<:DatabaseInterface}(
-        cursor::DatabaseCursor{T},
-        query::DatabaseQuery,
-        parameters=(),
-    )
-    for parameter_set in parameters
-        result = execute!(cursor, query, parameter_set)
-    end
-
-    return nothing
-end
-
-function executemany!{T<:DatabaseInterface}(
-        cursor::DatabaseCursor{T},
-        query::AbstractString,
-        parameters=(),
-    )
-    executemany!(cursor, StringDatabaseQuery(query), parameters)
+function execute!{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    query::MultiparameterQuery
+)
+    throw(NotImplementedError{T}())
 end
 
 """

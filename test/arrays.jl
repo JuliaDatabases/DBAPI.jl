@@ -1,6 +1,6 @@
 module TestColumnarArrayInterface
 
-using Base.Test
+using FactCheck
 import Base.Collections: PriorityQueue
 
 import Iterators: chain
@@ -12,52 +12,52 @@ import DBAPI.ArrayInterfaces:
     ArrayInterfaceError
 
 
-function main()
+facts("Array interface") do
     # invalid
-    @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo], Vector[])
-    @test_throws ArrayInterfaceError Base.connect(identity, ColumnarArrayInterface, [:foo], Vector[])
-    @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, Symbol[], Vector[[1, 2, 3]])
-    @test_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo, :bar], Vector[[1], [2, 3]])
+    @fact_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo], Vector[])
+    @fact_throws ArrayInterfaceError Base.connect(identity, ColumnarArrayInterface, [:foo], Vector[])
+    @fact_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, Symbol[], Vector[[1, 2, 3]])
+    @fact_throws ArrayInterfaceError Base.connect(ColumnarArrayInterface, [:foo, :bar], Vector[[1], [2, 3]])
 
     # do block (without the do block)
     connection = Base.connect(identity, ColumnarArrayInterface, Symbol[], Vector[])
-    @test isa(connection, DBAPI.DatabaseConnection)
-    @test DBAPI.isopen(connection) == false
+    @fact isa(connection, DBAPI.DatabaseConnection) --> true
+    @fact DBAPI.isopen(connection) --> false
 
     # empty
     connection = Base.connect(ColumnarArrayInterface, Symbol[], Vector[])
-    @test isa(connection, DBAPI.DatabaseConnection)
-    @test DBAPI.isopen(connection)
-    @test DBAPI.commit(connection) === nothing
-    @test_throws DBAPI.NotSupportedError DBAPI.rollback(connection)
-    @test Base.isopen(connection)
+    @fact isa(connection, DBAPI.DatabaseConnection) --> true
+    @fact DBAPI.isopen(connection) --> true
+    @fact DBAPI.commit(connection) --> exactly(nothing)
+    @fact_throws DBAPI.NotSupportedError DBAPI.rollback(connection)
+    @fact Base.isopen(connection) --> true
 
     cursor = DBAPI.cursor(connection)
-    @test isa(cursor, DBAPI.DatabaseCursor)
-    @test isa(cursor, DBAPI.FixedLengthDatabaseCursor)
+    @fact isa(cursor, DBAPI.DatabaseCursor) --> true
+    @fact isa(cursor, DBAPI.FixedLengthDatabaseCursor) --> true
 
-    @test_throws ArrayInterfaceError DBAPI.rows(cursor)
-    @test_throws ArrayInterfaceError DBAPI.columns(cursor)
+    @fact_throws ArrayInterfaceError DBAPI.rows(cursor)
+    @fact_throws ArrayInterfaceError DBAPI.columns(cursor)
 
-    @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:0))
-    @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:1))
-    @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:1))
+    @fact_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:0))
+    @fact_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:1))
+    @fact_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:1))
 
-    @test DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:0)) === nothing
+    @fact DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:0)) --> exactly(nothing)
 
-    @test isempty(collect(DBAPI.rows(cursor)))
-    @test isempty(collect(DBAPI.columns(cursor)))
-    @test_throws BoundsError cursor[1, 1]
-    @test_throws BoundsError cursor[1, :one]
-    @test isempty(cursor)
-    @test length(cursor) == 0
+    @fact isempty(collect(DBAPI.rows(cursor))) --> true
+    @fact isempty(collect(DBAPI.columns(cursor))) --> true
+    @fact_throws BoundsError cursor[1, 1]
+    @fact_throws BoundsError cursor[1, :one]
+    @fact isempty(cursor) --> true
+    @fact length(cursor) --> 0
 
-    @test_throws DBAPI.NotImplementedError cursor[:one, 1]
-    @test_throws DBAPI.NotImplementedError cursor[:one, :one]
-    @test_throws DBAPI.NotImplementedError cursor["one", "one"]
+    @fact_throws DBAPI.NotImplementedError cursor[:one, 1]
+    @fact_throws DBAPI.NotImplementedError cursor[:one, :one]
+    @fact_throws DBAPI.NotImplementedError cursor["one", "one"]
 
-    @test Base.close(connection) == nothing
-    @test Base.isopen(connection) == false
+    @fact Base.close(connection) --> exactly(nothing)
+    @fact Base.isopen(connection) --> false
 
     # non-empty
     connection = Base.connect(
@@ -65,48 +65,48 @@ function main()
         [:foo, :bar],
         Vector[[1, 2, 3], [3.0, 2.0, 1.0]]
     )
-    @test isa(connection, DBAPI.DatabaseConnection)
-    @test DBAPI.isopen(connection)
-    @test DBAPI.commit(connection) === nothing
-    @test_throws DBAPI.NotSupportedError DBAPI.rollback(connection)
-    @test Base.isopen(connection)
+    @fact isa(connection, DBAPI.DatabaseConnection) --> true
+    @fact DBAPI.isopen(connection) --> true
+    @fact DBAPI.commit(connection) --> exactly(nothing)
+    @fact_throws DBAPI.NotSupportedError DBAPI.rollback(connection)
+    @fact Base.isopen(connection) --> true
 
     cursor = DBAPI.cursor(connection)
-    @test isa(cursor, DBAPI.DatabaseCursor)
-    @test isa(cursor, DBAPI.FixedLengthDatabaseCursor)
+    @fact isa(cursor, DBAPI.DatabaseCursor) --> true
+    @fact isa(cursor, DBAPI.FixedLengthDatabaseCursor) --> true
 
-    @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:1))
+    @fact_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:1))
 
-    @test DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:0)) === nothing
+    @fact DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:0)) --> exactly(nothing)
 
-    @test isempty(collect(DBAPI.rows(cursor)))
-    @test isempty(collect(DBAPI.columns(cursor)))
-    @test isempty(cursor)
-    @test length(cursor) == 0
-    @test_throws BoundsError cursor[1, 1]
-    @test_throws BoundsError cursor[1, :one]
+    @fact collect(DBAPI.rows(cursor)) --> isempty
+    @fact collect(DBAPI.columns(cursor)) --> isempty
+    @fact cursor --> isempty
+    @fact length(cursor) --> 0
+    @fact_throws BoundsError cursor[1, 1]
+    @fact_throws BoundsError cursor[1, :one]
 
-    @test DBAPI.execute!(cursor, ColumnarArrayQuery([:foo, :bar], 1:3)) === nothing
+    @fact DBAPI.execute!(cursor, ColumnarArrayQuery([:foo, :bar], 1:3)) --> exactly(nothing)
     row_results = [
         (1, 3.0),
         (2, 2.0),
         (3, 1.0),
     ]
     nullable_row_results = map(x -> map(Nullable{Any}, x), row_results)
-    @test collect(DBAPI.rows(cursor)) == row_results
-    @test collect(DBAPI.columns(cursor)) == Vector[
+    @fact collect(DBAPI.rows(cursor)) --> row_results
+    @fact collect(DBAPI.columns(cursor)) --> Vector[
         [1, 2, 3],
         [3.0, 2.0, 1.0],
     ]
 
-    @test cursor[3, :bar] == 1.0
-    @test cursor[1, :foo] == 1
-    @test_throws BoundsError cursor[4, :foo]
-    @test_throws BoundsError cursor[1, :one]
-    @test_throws BoundsError cursor[0, :one]
+    @fact cursor[3, :bar] --> 1.0
+    @fact cursor[1, :foo] --> 1
+    @fact_throws BoundsError cursor[4, :foo]
+    @fact_throws BoundsError cursor[1, :one]
+    @fact_throws BoundsError cursor[0, :one]
 
-    @test !isempty(cursor)
-    @test length(cursor) == length(row_results)
+    @fact cursor --> not(isempty)
+    @fact length(cursor) --> length(row_results)
 
     empty_data_structures = (
         Array{Any}[Array{Any}(0)],
@@ -160,27 +160,27 @@ function main()
 
     for ds in empty_data_structures
         # ds will be a collection of an empty row
-        @test (ds, 1) == DBAPI.fetchintorows!(ds, cursor)
+        @fact DBAPI.fetchintorows!(ds, cursor) --> (ds, 1)
     end
 
     for ds in empty_data_structures
-        @test (ds, 0) === DBAPI.fetchintocolumns!(ds, cursor)
+        @fact DBAPI.fetchintocolumns!(ds, cursor) --> exactly((ds, 0))
     end
 
     for ds in empty_2d_data_structures
-        @test (ds, 0) === DBAPI.fetchintoarray!(ds, cursor)
+        @fact DBAPI.fetchintoarray!(ds, cursor) --> exactly((ds, 0))
     end
 
     for ds in filled_data_structures
-        @test (ds, 1) === DBAPI.fetchintorows!(ds, cursor)
+        @fact DBAPI.fetchintorows!(ds, cursor) --> exactly((ds, 1))
     end
 
     for ds in filled_data_structures
-        @test (ds, 1) === DBAPI.fetchintocolumns!(ds, cursor)
+        @fact DBAPI.fetchintocolumns!(ds, cursor) --> exactly((ds, 1))
     end
 
     for ds in filled_2d_data_structures
-        @test (ds, 1) === DBAPI.fetchintoarray!(ds, cursor)
+        @fact DBAPI.fetchintoarray!(ds, cursor) --> exactly((ds, 1))
     end
 
     first_empty(a::Associative) = isempty(first(values(a)))
@@ -190,21 +190,21 @@ function main()
         iters = 0
         for ds in DBAPI.DatabaseFetcher(:rows, empty_ds, cursor)
             # ds will be a collection containing an empty row
-            @test first_empty(ds)
+            @fact first_empty(ds) --> true
             iters += 1
         end
-        @test iters == length(cursor)
+        @fact iters --> length(cursor)
     end
 
     for empty_ds in empty_data_structures
         for ds in DBAPI.DatabaseFetcher(:columns, empty_ds, cursor)
-            @test false  # should never be reached
+            @fact true --> false  # should never be reached
         end
     end
 
     for empty_ds in empty_2d_data_structures
         for ds in DBAPI.DatabaseFetcher(:array, empty_ds, cursor)
-            @test false  # should never be reached
+            @fact true --> false  # should never be reached
         end
     end
 
@@ -214,22 +214,22 @@ function main()
     for filled_ds in filled_data_structures
         for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:rows, filled_ds, cursor))
             item = ds[1][1]
-            @test item === comparison_data(item)[idx][1]
+            @fact item --> exactly(comparison_data(item)[idx][1])
         end
     end
 
     for filled_ds in filled_data_structures
         for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:columns, filled_ds, cursor))
             item = ds[1][1]
-            @test item === comparison_data(item)[idx][1]
+            @fact item --> exactly(comparison_data(item)[idx][1])
         end
     end
 
     for filled_ds in filled_2d_data_structures
         for (idx, ds) in enumerate(DBAPI.DatabaseFetcher(:array, filled_ds, cursor))
             item = ds[1, 1]
-            @test item === comparison_data(item)[idx][1]
-            @test length(ds) == 1
+            @fact item --> exactly(comparison_data(item)[idx][1])
+            @fact length(ds) --> 1
         end
     end
 
@@ -239,52 +239,38 @@ function main()
         [:foo, :bar],
         Vector[[Nullable(1), Nullable(2), Nullable(3)], [3.0, 2.0, 1.0]]
     )
-    @test isa(connection, DBAPI.DatabaseConnection)
-    @test DBAPI.isopen(connection)
-    @test DBAPI.commit(connection) === nothing
-    @test_throws DBAPI.NotSupportedError DBAPI.rollback(connection)
-    @test Base.isopen(connection)
+    @fact isa(connection, DBAPI.DatabaseConnection) --> true
+    @fact DBAPI.isopen(connection) --> true
+    @fact DBAPI.commit(connection) --> exactly(nothing)
+    @fact_throws DBAPI.NotSupportedError DBAPI.rollback(connection)
+    @fact Base.isopen(connection) --> true
 
     cursor = DBAPI.cursor(connection)
-    @test isa(cursor, DBAPI.DatabaseCursor)
-    @test isa(cursor, DBAPI.FixedLengthDatabaseCursor)
+    @fact isa(cursor, DBAPI.DatabaseCursor) --> true
+    @fact isa(cursor, DBAPI.FixedLengthDatabaseCursor) --> true
 
-    @test_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:1))
+    @fact_throws DBAPI.DatabaseQueryError DBAPI.execute!(cursor, ColumnarArrayQuery([:one], 1:1))
 
-    @test DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:0)) === nothing
+    @fact DBAPI.execute!(cursor, ColumnarArrayQuery(Symbol[], 1:0)) --> exactly(nothing)
 
-    @test isempty(collect(DBAPI.rows(cursor)))
-    @test isempty(collect(DBAPI.columns(cursor)))
-    @test isempty(cursor)
-    @test length(cursor) == 0
-    @test_throws BoundsError cursor[1, 1]
-    @test_throws BoundsError cursor[1, :one]
+    @fact collect(DBAPI.rows(cursor)) --> isempty
+    @fact collect(DBAPI.columns(cursor)) --> isempty
+    @fact cursor --> isempty
+    @fact length(cursor) --> 0
+    @fact_throws BoundsError cursor[1, 1]
+    @fact_throws BoundsError cursor[1, :one]
 
-    @test DBAPI.execute!(cursor, ColumnarArrayQuery([:foo, :bar], 2:3)) === nothing
+    @fact DBAPI.execute!(cursor, ColumnarArrayQuery([:foo, :bar], 2:3)) --> exactly(nothing)
     row_results = Any[
         (Nullable(2), 2.0),
         (Nullable(3), 1.0),
     ]
     nullable_row_results = map(x -> map(y -> isa(y, Nullable) ? y : Nullable{Any}(y), x), row_results)
-    @test isequal(collect(DBAPI.rows(cursor)), row_results)
-    @test isequal(collect(DBAPI.columns(cursor)), Vector[
+    @fact isequal(collect(DBAPI.rows(cursor)), row_results) --> true
+    @fact isequal(collect(DBAPI.columns(cursor)), Vector[
         [Nullable(2), Nullable(3)],
         [2.0, 1.0],
-    ])
-
-    # bad queries
-    @test_throws DBAPI.NotImplementedError DBAPI.execute!(
-        cursor,
-        ColumnarArrayQuery([:foo, :bar], 1:3),
-        (),
-    )
-    @test_throws DBAPI.NotImplementedError DBAPI.executemany!(
-        cursor,
-        ColumnarArrayQuery([:foo, :bar], 1:3),
-        ((),()),
-    )
+    ]) --> true
 end
 
 end
-
-TestColumnarArrayInterface.main()
