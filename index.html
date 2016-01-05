@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>DBAPI.jl by JuliaDB</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>DBAPI.jl</h1>
+        <p>A new database interface proposal</p>
+
+        <p class="view"><a href="https://github.com/JuliaDB/DBAPI.jl">View the Project on GitHub <small>JuliaDB/DBAPI.jl</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/JuliaDB/DBAPI.jl/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/JuliaDB/DBAPI.jl/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/JuliaDB/DBAPI.jl">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="dbapi" class="anchor" href="#dbapi" aria-hidden="true"><span class="octicon octicon-link"></span></a>DBAPI</h1>
+
+<p><a href="https://travis-ci.org/JuliaDB/DBAPI.jl"><img src="https://travis-ci.org/JuliaDB/DBAPI.jl.svg" alt="Build Status"></a> <a href="https://ci.appveyor.com/project/iamed2/dbapi-jl"><img src="https://ci.appveyor.com/api/projects/status/xf6c75kxvtluiuit?svg=true" alt="Build status"></a>
+ <a href="http://codecov.io/github/JuliaDB/DBAPI.jl?branch=master"><img src="http://codecov.io/github/JuliaDB/DBAPI.jl/coverage.svg?branch=master" alt="codecov.io"></a></p>
+
+<p>This module defines an abstract interface for database drivers in Julia.</p>
+
+<p>This module contains abstract types, abstract required functions (which throw
+a <code>NotImplementedError</code> by default), and abstract optional functions (which
+throw a <code>NotSupportedError</code> by default).</p>
+
+<p>Database drivers should import this module, subtype its types, and create
+methods for its functions which implement the signatures and behavioural
+specifications contained within this module.</p>
+
+<p>This interface is largely inspired by Python's DB API 2.0, which is in the
+public domain: <a href="https://www.python.org/dev/peps/pep-0249">PEP0249</a>.</p>
+
+<h2>
+<a id="null-handling" class="anchor" href="#null-handling" aria-hidden="true"><span class="octicon octicon-link"></span></a>Null Handling</h2>
+
+<p>All values of type <code>T</code> that could be <code>null</code> should be returned as 
+<code>Nullable{T}</code>. </p>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/JuliaDB">JuliaDB</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
