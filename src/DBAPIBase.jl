@@ -220,6 +220,64 @@ function connection{T<:DatabaseInterface}(cursor::DatabaseCursor{T})
 end
 
 """
+Prepare a query to be executed later.  Parameters can be bound to the
+ query using `bind` after it is prepared.
+
+Returns `nothing`.
+"""
+function prepare{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    query::DatabaseQuery
+)
+    throw(NotImplementedError{T}())
+end
+
+function prepare{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    query::SimpleStringQuery
+)
+    throw(NotSupportedError{T}())
+end
+
+function prepare{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    query::AbstractString
+)
+    prepare(cursor, SimpleStringQuery(query))
+end
+
+"""
+Bind parameters to a prepared cursor.  This function must be called
+ after `prepare` is called on the cursor.  Optionally, metadata
+ regarding the parameters can be passed if the underlying database
+ system requires it.
+
+Returns `nothing`.
+"""
+function bind{T<:DatabaseInterface}(
+    cursor::DatabaseCursor{T},
+    params; meta=()
+)
+    throw(NotImplementedError{T}())
+end
+
+immutable Metadata
+    row_count::Int
+    names::Array{AbstractString, 1}
+    col_types::Array{Type, 1}
+end
+
+"""
+Get metadata from an executed query.  Metadata contains the row count,
+ an array of column names and an array of column types.
+
+Return an instance of type `Metadata`.
+"""
+function metadata{T<:DatabaseInterface}(cursor::DatabaseCursor{T})
+    throw(NotImplementedError{T}())
+end
+
+"""
 Run a query on a database.
 
 The results of the query are not returned by this function but are accessible
