@@ -2,6 +2,7 @@ module ArrayInterfaces
 
 import Base: connect, close, getindex, start, next, done, length, isopen, isempty
 importall ..DBAPIBase
+import Compat.view
 
 
 ### Underlying column data structures
@@ -18,7 +19,7 @@ immutable SubColumn{T} <: AbstractColumn{T}
     data::SubArray{T}
 end
 
-SubColumn(column::Column, indices...) = SubColumn(column.name, sub(column.data, indices...))
+SubColumn(column::Column, indices...) = SubColumn(column.name, view(column.data, indices...))
 
 start(column::AbstractColumn) = start(column.data)
 next{T}(column::AbstractColumn{T}, state) = next(column.data, state)::Tuple{T, Any}
@@ -235,6 +236,13 @@ end
 
 immutable ArrayInterfaceError{T<:AbstractString} <: DatabaseError{ColumnarArrayInterface}
     message::T
+end
+
+if VERSION >= v"0.5-"
+    Base.iteratorsize(::ColumnarArrayRowIterator) = Base.SizeUnknown()
+    Base.iteratoreltype(::ColumnarArrayRowIterator) = Base.EltypeUnknown()
+    Base.iteratorsize(::ColumnarArrayColumnIterator) = Base.SizeUnknown()
+    Base.iteratoreltype(::ColumnarArrayColumnIterator) = Base.EltypeUnknown()
 end
 
 end  # module
