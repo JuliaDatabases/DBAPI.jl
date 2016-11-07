@@ -29,7 +29,7 @@ cd /path/to/DBAPI.jl
 
 -- Start the julia repl
 
-julia> Pkg.clone("https://github.com/JuliaDB/DBI.jl")
+julia> Pkg.clone(pwd())
 
 INFO: Cloning DBAPI from /path/to/DBAPI.jl
 INFO: Computing changes...
