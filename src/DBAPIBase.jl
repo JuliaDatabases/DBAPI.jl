@@ -31,22 +31,22 @@ import Base: connect, close, getindex, isopen, show, start, next, done, length, 
 
 import Iterators: imap
 
-abstract DatabaseInterface
-abstract DatabaseError{T<:DatabaseInterface} <: Exception
-abstract DatabaseConnection{T<:DatabaseInterface}
-abstract DatabaseCursor{T<:DatabaseInterface}
-abstract FixedLengthDatabaseCursor{T} <: DatabaseCursor{T}
+abstract type DatabaseInterface end
+abstract type DatabaseError{T<:DatabaseInterface} <: Exception  end
+abstract type DatabaseConnection{T<:DatabaseInterface} end
+abstract type DatabaseCursor{T<:DatabaseInterface} end
+abstract type FixedLengthDatabaseCursor{T} <: DatabaseCursor{T} end
 Base.linearindexing(::Type{FixedLengthDatabaseCursor}) = Base.LinearSlow()
 Base.ndims(cursor::FixedLengthDatabaseCursor) = 2
 
 "A database query."
-abstract DatabaseQuery
+abstract type DatabaseQuery end
 
 "A database query which includes a set of parameters."
-abstract ParameterQuery <: DatabaseQuery
+abstract type ParameterQuery <: DatabaseQuery end
 
 "A database query which includes a set of parameter sets."
-abstract MultiparameterQuery <: ParameterQuery
+abstract type MultiparameterQuery <: ParameterQuery end
 
 "A database query stored in a string."
 immutable SimpleStringQuery{T<:AbstractString} <: DatabaseQuery
@@ -65,7 +65,7 @@ immutable StringMultiparameterQuery{T<:AbstractString, S} <: MultiparameterQuery
     param_list::S
 end
 
-typealias StringQuery Union{
+const StringQuery = Union{
     SimpleStringQuery, StringParameterQuery, StringMultiparameterQuery
 }
 
@@ -407,7 +407,7 @@ A terrible hack to make the fetchintoarray! signature work.
 
 See https://github.com/JuliaLang/julia/issues/13156#issuecomment-140618981
 """
-typealias AssociativeVK{V, K} Associative{K, V}
+const AssociativeVK{V, K} = Associative{K, V}
 
 index_return_type(a::Associative) = valtype(a)
 index_return_type(a::Any) = eltype(a)
@@ -576,7 +576,7 @@ function fetchintocolumns!{T<:DatabaseInterface, U<:Union{AbstractArray, Associa
     throw(NotSupportedError{T}())
 end
 
-typealias Orientation Union{Val{:rows}, Val{:columns}, Val{:array}}
+const Orientation = Union{Val{:rows}, Val{:columns}, Val{:array}}
 
 immutable DatabaseFetcher{O<:Orientation, T<:DatabaseInterface, U<:Union{AbstractArray, Associative}}
     orientation::O
