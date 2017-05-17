@@ -2,7 +2,7 @@ module FailedInterface
 
 import DBAPI
 using FactCheck
-import Base.Collections: PriorityQueue
+import DataStructures: PriorityQueue
 
 type BadInterface <: DBAPI.DatabaseInterface end
 type BadConnection <: DBAPI.DatabaseConnection{BadInterface} end

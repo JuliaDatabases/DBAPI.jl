@@ -1,4 +1,5 @@
 julia 0.4
 Reexport
 Iterators
+DataStructures
 Compat 0.8.4

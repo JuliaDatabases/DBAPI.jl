@@ -7,7 +7,7 @@ import Compat.view
 
 ### Underlying column data structures
 
-abstract AbstractColumn{T}
+abstract type AbstractColumn{T} end
 
 immutable Column{T} <: AbstractColumn{T}
     name::Symbol
