@@ -21,3 +21,29 @@ public domain: [PEP0249](https://www.python.org/dev/peps/pep-0249).
 
 All values of type `T` that could be `null` should be returned as 
 `Nullable{T}`. 
+
+## Running tests (version numbers shown may be different)
+
+```
+cd /path/to/DBAPI.jl
+
+-- Start the julia repl
+
+julia> Pkg.clone(pwd())
+
+INFO: Cloning DBAPI from /path/to/DBAPI.jl
+INFO: Computing changes...
+INFO: No packages to install, update or remove
+INFO: Package database updated
+
+julia> Pkg.test("DBAPI")
+INFO: Computing test dependencies for DBAPI...
+INFO: Installing FactCheck v0.4.3
+INFO: Testing DBAPI
+Failed Interface
+168 facts verified.
+Array interface
+268 facts verified.
+INFO: DBAPI tests passed
+INFO: Removing FactCheck v0.4.3
+```
